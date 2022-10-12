@@ -1,2 +1,5 @@
 ﻿.idea
 pytorch/__pycache__
+__pycache__
+output
+runs
