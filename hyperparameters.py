@@ -1,12 +1,11 @@
 import os
 
 OUTPUT_DIR = os.path.join("output")
-MODEL_FILE = os.path.join(OUTPUT_DIR, "model.pth")
 
 TAU = 0.005                 # Soft update of target networks
 OU_THETA = 0.15             # theta for OU noise
-BATCH_SIZE = 64             # Minibatch size
-BUFFER_SIZE = 50000         # Replay buffer size
+BATCH_SIZE = 512            # batch size
+BUFFER_SIZE = 1000000       # Replay buffer size
 
 MAX_EPISODES = 100000         # Total number of episodes to train (default: 3000)
 MAX_STEPS_PER_EPISODE = 200   # Max timesteps in a single episode (default: 100)
