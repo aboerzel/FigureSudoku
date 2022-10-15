@@ -1,4 +1,5 @@
 import os
+import random
 
 import numpy as np
 import torch
@@ -12,13 +13,12 @@ class SACAgent:
     ALPHA_INITIAL = 1.
     REPLAY_BUFFER_BATCH_SIZE = 100
     DISCOUNT_RATE = 0.99
-    LEARNING_RATE = 10 ** -4
-    SOFT_UPDATE_INTERPOLATION_FACTOR = 0.01
+    LEARNING_RATE = 0.0001
+    SOFT_UPDATE_INTERPOLATION_FACTOR = 0.005
 
-    def __init__(self, environment):
-        self.environment = environment
-        self.state_size = self.environment.state_size
-        self.action_size = self.environment.action_size
+    def __init__(self, state_size, action_size):
+        self.state_size = state_size
+        self.action_size = action_size
         self.critic_local = Network(input_dimension=self.state_size, output_dimension=self.action_size)
         self.critic_local2 = Network(input_dimension=self.state_size, output_dimension=self.action_size)
         self.critic_optimiser = torch.optim.Adam(self.critic_local.parameters(), lr=self.LEARNING_RATE)
@@ -34,30 +34,24 @@ class SACAgent:
 
         self.replay_buffer = ReplayBuffer(capacity=5000)
 
-        self.target_entropy = 0.98 * -np.log(1 / self.environment.action_size)
+        self.target_entropy = 0.98 * -np.log(1 / self.action_size)
         self.log_alpha = torch.tensor(np.log(self.ALPHA_INITIAL), requires_grad=True)
         self.alpha = self.log_alpha
         self.alpha_optimiser = torch.optim.Adam([self.log_alpha], lr=self.LEARNING_RATE)
 
-    def get_next_action(self, state, evaluation_episode=False):
-        if evaluation_episode:
-            discrete_action = self.get_action_deterministically(state)
+    def get_next_action(self, state, possible_actions, eps):
+        # Epsilon-greedy action selection
+        if random.random() > eps:
+            action = self.get_action(state)
+            return action
         else:
-            discrete_action = self.get_action_nondeterministically(state)
-        return discrete_action
+            action = random.choice(possible_actions)
+            return action
 
-    def get_action_nondeterministically(self, state):
-        action_probabilities = self.get_action_probabilities(state)
-        discrete_action = np.random.choice(range(self.action_size), p=action_probabilities)
-        return discrete_action
-
-    def get_action_deterministically(self, state):
+    def get_action(self, state):
         action_probabilities = self.get_action_probabilities(state)
         discrete_action = np.argmax(action_probabilities)
         return discrete_action
-
-    def train_on_transition(self, state, discrete_action, next_state, reward, done):
-        self.train_networks(state, discrete_action, reward, next_state, done)
 
     def train_networks(self, state, action, reward, next_state, done):
         # Set all the gradients stored in the optimisers to zero.

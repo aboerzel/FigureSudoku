@@ -15,12 +15,14 @@ def train_sudoku(gui, stop):
     colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
     env = FigureSudokuEnv(geometries, colors, gui=gui)
 
-    agent = SACAgent(env)
-
-    #agent.load_model_weights(OUTPUT_DIR)
+    agent = SACAgent(env.state_size, env.action_size)
+    #agent.load(MODEL_FILE)
 
     # hyperparameter
     start_episode = 1
+    eps_start = 0.5
+    eps_end = 0.01
+    eps_decay = 0.99995
     start_level = 1
 
     # score parameter
@@ -29,6 +31,7 @@ def train_sudoku(gui, stop):
     avg_score = -99999
     best_avg_score = avg_score
 
+    eps = eps_start
     level = start_level
 
     writer = SummaryWriter()
@@ -37,24 +40,16 @@ def train_sudoku(gui, stop):
         if stop():
             break
 
-        evaluation_episode = episode % TRAINING_EVALUATION_RATIO == 0
-
         state = env.reset(level=level)  # reset the environment
         episode_score = 0
         for timestep in range(1, MAX_STEPS_PER_EPISODE + 1):
-            action = agent.get_next_action(state, evaluation_episode=evaluation_episode)
+            possible_actions = env.get_possible_actions(state)
+            action = agent.get_next_action(state, possible_actions, eps)
             print(f'Episode {episode:08d} - Step {timestep:04d}\tAction: {action}', end='\r')
             next_state, reward, done = env.step(action)
-
-            if not evaluation_episode:
-                agent.train_on_transition(state, action, next_state, reward, done)
-            else:
-                episode_score += reward
-
-            #agent.train_on_transition(state, action, next_state, reward, done)
-            #episode_score += reward
-
+            agent.train_networks(state, action, reward, next_state, done)
             state = next_state
+            episode_score += reward
 
             if done:
                 print(f'Episode {episode:08d} - Step {timestep:04d}\tEpisode Score: {episode_score:.2f}\tdone!')
@@ -66,12 +61,15 @@ def train_sudoku(gui, stop):
 
         writer.add_scalar("episode score", episode_score, episode)
         writer.add_scalar("avg score", avg_score, episode)
+        writer.add_scalar("epsilon", eps, episode)
 
         if episode % 10 == 0:
-            print(f'\rEpisode {episode:08d}\tAverage Score: {avg_score:.2f}')
+            print(f'\rEpisode {episode:08d}\tAverage Score: {avg_score:.2f}\tEpsilon: {eps:.8f}')
             agent.save(MODEL_FILE)
 
         # print(f'Episode {episode:06d}\tAvg Score: {avg_score:.2f}\tBest Avg Score: {best_avg_score:.2f}')
+
+        eps = max(eps_end, eps_decay * eps)  # decrease epsilon
 
         # save best weights
         if episode > warmup_episodes and avg_score > best_avg_score:
