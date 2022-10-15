@@ -11,12 +11,12 @@ from core import Actor, Critic
 
 class SACDiscrete:
     def __init__(self, state_size, action_size, gamma=0.99, tau=1e-3, actor_lr=5e-4, critic_lr=1e-4,
-                 target_entropy_scale=0.5, alpha=0.8, alpha_lr=1e-5, hidden=512, dtype=torch.float32):
+                 target_entropy_scale=0.5, alpha=0.8, alpha_lr=1e-5, hidden=512):
         self.state_size = state_size
         self.action_size = action_size
         self.gamma = gamma
         self.tau = tau
-        self.dtype = dtype
+        self.dtype = torch.float32
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.hidden = hidden
         self.actor_lr = actor_lr
