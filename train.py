@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from memory import ExperienceBuffer
 from sac import SACDiscrete
-from figure_sudoko_env import FigureSudokuEnv
+from figure_sudoko_env import FigureSudokuEnv, Reward
 from hyperparameters import *
 from shapes import Geometry, Color
 
@@ -21,16 +21,17 @@ def train_sudoku(gui, stop):
     agent.load_model(OUTPUT_DIR)
 
     # hyperparameter
-    start_episode = 1
+    start_episode = 500000
     start_level = 3
 
     # score parameter
-    warmup_episodes = start_episode + 50000  #  2 * AVG_SCORE_WINDOW
+    warmup_episodes = start_episode + 10000
     scores_deque = deque(maxlen=AVG_SCORE_WINDOW)
     avg_score = -99999
     best_avg_score = avg_score
 
     level = start_level
+    target_score = Reward.DONE.value - level + 1  # Goal score at which the problem is solved
 
     writer = SummaryWriter()
 
@@ -55,7 +56,7 @@ def train_sudoku(gui, stop):
             state = next_state
             episode_score += reward
 
-            if episode >= warmup_episodes:
+            if episode >= warmup_episodes and len(buffer) >= 10000:
                 batch = buffer.sample()
                 loss_act, loss_crit = agent.update(batch)
 
@@ -72,7 +73,8 @@ def train_sudoku(gui, stop):
 
         if episode % 10 == 0:
             print(f'\rEpisode {episode:08d}\tAverage Score: {avg_score:.2f}')
-            agent.save_model(OUTPUT_DIR)
+            if episode > warmup_episodes:
+                agent.save_model(OUTPUT_DIR)
 
         # print(f'Episode {episode:06d}\tAvg Score: {avg_score:.2f}\tBest Avg Score: {best_avg_score:.2f}')
 
@@ -83,7 +85,7 @@ def train_sudoku(gui, stop):
             print(f'Episode {episode:08d}\tWeights saved!\tBest Avg Score: {best_avg_score:.2f}')
 
         # stop training if target score was reached
-        if episode > warmup_episodes and avg_score >= TARGET_SCORE:
+        if episode > warmup_episodes and avg_score >= target_score:
             agent.save_model(OUTPUT_DIR)
             print(f'\nEnvironment solved in {episode} episodes!\tAverage Score: {avg_score:.2f}')
             break
