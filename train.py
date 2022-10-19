@@ -21,8 +21,8 @@ def train_sudoku(gui, stop):
     agent.load_model(OUTPUT_DIR)
 
     # hyperparameter
-    start_episode = 500000
-    start_level = 3
+    start_episode = 1
+    start_level = 4
 
     # score parameter
     warmup_episodes = start_episode + 10000
