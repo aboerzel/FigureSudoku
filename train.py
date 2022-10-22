@@ -22,10 +22,10 @@ def train_sudoku(gui, stop):
 
     # hyperparameter
     start_episode = 1
-    start_level = 4
+    start_level = 5
 
     # score parameter
-    warmup_episodes = start_episode + 10000
+    warmup_episodes = start_episode + 0  # 10000
     scores_deque = deque(maxlen=AVG_SCORE_WINDOW)
     avg_score = -99999
     best_avg_score = avg_score
