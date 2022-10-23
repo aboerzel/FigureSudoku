@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn.functional as F
 import copy
@@ -6,7 +8,7 @@ import numpy as np
 from torch import tensor
 from torch.optim import Adam
 
-from core import Actor, Critic
+from network import Actor, Critic
 
 
 class SACDiscrete:
@@ -139,10 +141,18 @@ class SACDiscrete:
         torch.save(self.critic_2.state_dict(), f'{path}/critic_2.pt')
 
     def load_model(self, path):
-        self.actor.load_state_dict(torch.load(f'{path}/actor.pt', map_location=self.device))
-        self.critic_1.load_state_dict(torch.load(f'{path}/critic_1.pt', map_location=self.device))
-        self.critic_2.load_state_dict(torch.load(f'{path}/critic_2.pt', map_location=self.device))
+        actor_model_path = f'{path}/actor.pt'
+        critic1_model_path = f'{path}/critic_1.pt'
+        critic2_model_path = f'{path}/critic_2.pt'
 
+        if os.path.exists(actor_model_path):
+            self.actor.load_state_dict(torch.load(actor_model_path, map_location=self.device))
+
+        if os.path.exists(critic1_model_path):
+            self.critic_1.load_state_dict(torch.load(critic1_model_path, map_location=self.device))
+
+        if os.path.exists(critic2_model_path):
+            self.critic_2.load_state_dict(torch.load(critic2_model_path, map_location=self.device))
         print('Weights are loaded')
 
     def get_alpha(self):

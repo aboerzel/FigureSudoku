@@ -3,15 +3,14 @@ from collections import deque
 
 
 class ExperienceBuffer:
-    def __init__(self, buff_len, batch_size):
+    def __init__(self, buff_len):
         self.buff = deque(maxlen=buff_len)
-        self.batch_size = batch_size
 
     def add(self, observation):
         self.buff.append(observation)
 
-    def sample(self):
-        out = random.sample(self.buff, self.batch_size)
+    def sample(self, batch_size):
+        out = random.sample(self.buff, batch_size)
         return list(zip(*out))  # transpose list
 
     def clear(self):

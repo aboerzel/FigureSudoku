@@ -4,8 +4,8 @@ from collections import deque
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from memory import ExperienceBuffer
-from sac import SACDiscrete
+from buffer import ExperienceBuffer
+from agent import SACDiscrete
 from figure_sudoko_env import FigureSudokuEnv, Reward
 from hyperparameters import *
 from shapes import Geometry, Color
@@ -22,20 +22,19 @@ def train_sudoku(gui, stop):
 
     # hyperparameter
     start_episode = 1
-    start_level = 5
+    level = 10
 
     # score parameter
-    warmup_episodes = start_episode + 0  # 10000
+    warmup_episodes = start_episode + 10000
     scores_deque = deque(maxlen=AVG_SCORE_WINDOW)
     avg_score = -99999
     best_avg_score = avg_score
 
-    level = start_level
     target_score = Reward.DONE.value - level + 1  # Goal score at which the problem is solved
 
     writer = SummaryWriter()
 
-    buffer = ExperienceBuffer(BUFFER_SIZE, BATCH_SIZE)
+    buffer = ExperienceBuffer(BUFFER_SIZE)
 
     for episode in range(start_episode, MAX_EPISODES + 1):
         if stop():
@@ -43,8 +42,9 @@ def train_sudoku(gui, stop):
 
         state = env.reset(level=level)  # reset the environment
         episode_score = 0
+        last_reward = 0
         for timestep in range(1, MAX_STEPS_PER_EPISODE + 1):
-            if episode <= warmup_episodes:
+            if episode <= warmup_episodes or last_reward < -1:
                 possible_actions = env.get_possible_actions(state)
                 action = random.choice(possible_actions)
             else:
@@ -56,8 +56,8 @@ def train_sudoku(gui, stop):
             state = next_state
             episode_score += reward
 
-            if episode >= warmup_episodes and len(buffer) >= 10000:
-                batch = buffer.sample()
+            if episode >= warmup_episodes and len(buffer) >= 25 * BATCH_SIZE:
+                batch = buffer.sample(BATCH_SIZE)
                 loss_act, loss_crit = agent.update(batch)
 
             if done:
