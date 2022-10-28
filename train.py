@@ -22,7 +22,7 @@ def train_sudoku(gui, stop):
 
     # hyperparameter
     start_episode = 1
-    level = 10
+    level = 12
 
     # score parameter
     warmup_episodes = start_episode + 10000
@@ -42,9 +42,9 @@ def train_sudoku(gui, stop):
 
         state = env.reset(level=level)  # reset the environment
         episode_score = 0
-        last_reward = 0
+        neg_reward_sum = 0
         for timestep in range(1, MAX_STEPS_PER_EPISODE + 1):
-            if episode <= warmup_episodes or last_reward < -1:
+            if episode <= warmup_episodes or neg_reward_sum < -50:
                 possible_actions = env.get_possible_actions(state)
                 action = random.choice(possible_actions)
             else:
@@ -55,8 +55,10 @@ def train_sudoku(gui, stop):
             buffer.add((state, action, reward, next_state, done))
             state = next_state
             episode_score += reward
+            if reward < Reward.CONTINUE.value:
+                neg_reward_sum += reward
 
-            if episode >= warmup_episodes and len(buffer) >= 25 * BATCH_SIZE:
+            if len(buffer) >= BATCH_SIZE and episode >= warmup_episodes:
                 batch = buffer.sample(BATCH_SIZE)
                 loss_act, loss_crit = agent.update(batch)
 
