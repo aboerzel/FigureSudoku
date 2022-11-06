@@ -1,6 +1,5 @@
 import gym
-#import numpy as np
-import cupy as np
+import numpy as np
 
 from figure_sudoko_env import FigureSudokuEnv
 from stable_baselines3.common.env_checker import check_env
@@ -90,23 +89,22 @@ class NormalizeActionWrapper(gym.Wrapper):
 
 MODEL_PATH = "output/sudoku"
 MAX_TIMESTEPS = 200
-EPISODES = 100000
+EPISODES = 10000000
 
 
 def train_sudoku(gui, stop):
     # create environment
     env = FigureSudokuEnv(level=12, gui=gui)
-    #env = TimeLimitWrapper(env, max_steps=200)
+    env = TimeLimitWrapper(env, max_steps=MAX_TIMESTEPS)
     #env = NormalizeActionWrapper(env)
     check_env(env)
 
     #model = PPO.load(MODEL_PATH)
-    model = PPO(MlpPolicy, env=env, verbose=1, tensorboard_log="runs", device="cuda")
+    model = PPO(MlpPolicy, env=env, verbose=1, batch_size=128, tensorboard_log="runs", device="cuda")
 
     for epoch in range(1, EPISODES):
         model.learn(total_timesteps=MAX_TIMESTEPS, reset_num_timesteps=False)
         model.save(MODEL_PATH)
-
 
     del model  # delete trained model to demonstrate loading
     model = PPO.load(MODEL_PATH)
@@ -115,7 +113,7 @@ def train_sudoku(gui, stop):
     for i in range(30):
         action, _states = model.predict(obs, deterministic=True)
         print(action)
-        obs, rewards, dones, info = env.step(action)
+        obs, reward, done, info = env.step(action)
         env.render()
-        if dones:
+        if done:
             break

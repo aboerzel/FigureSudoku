@@ -30,7 +30,6 @@ class FigureSudokuEnv(gym.Env):
         self.actions = np.array(list(itertools.product(self.figures, fields)), dtype=object)
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
 
-        #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
         self.action_space = Discrete(n=len(self.actions))
         self.observation_space = Box(shape=(32,), low=-1, high=3, dtype=np.int)
         self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
@@ -88,11 +87,6 @@ class FigureSudokuEnv(gym.Env):
 
         (geometry, color) = target_action[0]
         (row, col) = target_action[1]
-
-        #row = action[0]
-        #col = action[1]
-        #geometry = Geometry(action[2])
-        #color = Color(action[3])
 
         temp_state = [geometry.value, color.value]
         info = {}
