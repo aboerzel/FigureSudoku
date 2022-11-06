@@ -1,96 +1,111 @@
-import random
-from collections import deque
-
+import gym
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
 
-from buffer import ExperienceBuffer
-from agent import SACDiscrete
-from figure_sudoko_env import FigureSudokuEnv, Reward
-from hyperparameters import *
-from shapes import Geometry, Color
+from figure_sudoko_env import FigureSudokuEnv
+from stable_baselines3.common.env_checker import check_env
+from stable_baselines3 import PPO
+from stable_baselines3.ppo import MlpPolicy
+
+
+class TimeLimitWrapper(gym.Wrapper):
+    """
+    :param env: (gym.Env) Gym environment that will be wrapped
+    :param max_steps: (int) Max number of steps per episode
+    """
+
+    def __init__(self, env, max_steps=100):
+        # Call the parent constructor, so we can access self.env later
+        super(TimeLimitWrapper, self).__init__(env)
+        self.max_steps = max_steps
+        # Counter of steps per episode
+        self.current_step = 0
+
+    def reset(self):
+        """
+        Reset the environment
+        """
+        # Reset the counter
+        self.current_step = 0
+        return self.env.reset()
+
+    def step(self, action):
+        """
+        :param action: ([float] or int) Action taken by the agent
+        :return: (np.ndarray, float, bool, dict) observation, reward, is the episode over?, additional informations
+        """
+        self.current_step += 1
+        obs, reward, done, info = self.env.step(action)
+        # Overwrite the done signal when
+        if self.current_step >= self.max_steps:
+            done = True
+            # Update the info dict to signal that the limit was exceeded
+            info['time_limit_reached'] = True
+        return obs, reward, done, info
+
+
+class NormalizeActionWrapper(gym.Wrapper):
+    """
+    :param env: (gym.Env) Gym environment that will be wrapped
+    """
+
+    def __init__(self, env):
+        # Retrieve the action space
+        action_space = env.action_space
+        assert isinstance(action_space, gym.spaces.Box), "This wrapper only works with continuous action space (spaces.Box)"
+        # Retrieve the max/min values
+        self.low, self.high = action_space.low, action_space.high
+
+        # We modify the action space, so all actions will lie in [-1, 1]
+        env.action_space = gym.spaces.Box(low=-1, high=1, shape=action_space.shape, dtype=np.float32)
+
+        # Call the parent constructor, so we can access self.env later
+        super(NormalizeActionWrapper, self).__init__(env)
+
+    def rescale_action(self, scaled_action):
+        """
+        Rescale the action from [-1, 1] to [low, high]
+        (no need for symmetric action space)
+        :param scaled_action: (np.ndarray)
+        :return: (np.ndarray)
+        """
+        return self.low + (0.5 * (scaled_action + 1.0) * (self.high - self.low))
+
+    def reset(self):
+        """
+        Reset the environment
+        """
+        return self.env.reset()
+
+    def step(self, action):
+        """
+        :param action: ([float] or int) Action taken by the agent
+        :return: (np.ndarray, float, bool, dict) observation, reward, is the episode over?, additional informations
+        """
+        # Rescale action from [-1, 1] to original [low, high] interval
+        rescaled_action = self.rescale_action(action)
+        obs, reward, done, info = self.env.step(rescaled_action)
+        return obs, reward, done, info
 
 
 def train_sudoku(gui, stop):
     # create environment
-    geometries = np.array([Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON])
-    colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
-    env = FigureSudokuEnv(geometries, colors, gui=gui)
+    env = FigureSudokuEnv(level=12, gui=gui)
+    env = TimeLimitWrapper(env, max_steps=200)
+    #env = NormalizeActionWrapper(env)
+    check_env(env)
 
-    agent = SACDiscrete(env.state_size, env.action_size)
-    agent.load_model(OUTPUT_DIR)
+    model = PPO(MlpPolicy, env=env, verbose=1, tensorboard_log="runs")
+    model.learn(total_timesteps=10000000)
+    model.save("output/sudoku")
 
-    # hyperparameter
-    start_episode = 1
-    level = 12
+    del model  # delete trained model to demonstrate loading
+    model = PPO.load("output/sudoku")
 
-    # score parameter
-    warmup_episodes = start_episode + 10000
-    scores_deque = deque(maxlen=AVG_SCORE_WINDOW)
-    avg_score = -99999
-    best_avg_score = avg_score
-
-    target_score = Reward.DONE.value - level + 1  # Goal score at which the problem is solved
-
-    writer = SummaryWriter()
-
-    buffer = ExperienceBuffer(BUFFER_SIZE)
-
-    for episode in range(start_episode, MAX_EPISODES + 1):
-        if stop():
+    obs = env.reset()
+    for i in range(30):
+        action, _states = model.predict(obs)
+        print(action)
+        obs, rewards, dones, info = env.step(action)
+        env.render()
+        if dones:
             break
-
-        state = env.reset(level=level)  # reset the environment
-        episode_score = 0
-        neg_reward_sum = 0
-        for timestep in range(1, MAX_STEPS_PER_EPISODE + 1):
-            if episode <= warmup_episodes or neg_reward_sum < -50:
-                possible_actions = env.get_possible_actions(state)
-                action = random.choice(possible_actions)
-            else:
-                action = agent.get_action(state, deterministic=False)
-            print(f'Episode {episode:08d} - Step {timestep:04d}\tAction: {action}', end='\r')
-
-            next_state, reward, done = env.step(action)
-            buffer.add((state, action, reward, next_state, done))
-            state = next_state
-            episode_score += reward
-            if reward < Reward.CONTINUE.value:
-                neg_reward_sum += reward
-
-            if len(buffer) >= BATCH_SIZE and episode >= warmup_episodes:
-                batch = buffer.sample(BATCH_SIZE)
-                loss_act, loss_crit = agent.update(batch)
-
-            if done:
-                print(f'Episode {episode:08d} - Step {timestep:04d}\tEpisode Score: {episode_score:.2f}\tdone!')
-                break
-
-        # average score over the last n epochs
-        scores_deque.append(episode_score)
-        avg_score = np.mean(scores_deque)
-
-        writer.add_scalar("episode score", episode_score, episode)
-        writer.add_scalar("avg score", avg_score, episode)
-
-        if episode % 10 == 0:
-            print(f'\rEpisode {episode:08d}\tAverage Score: {avg_score:.2f}')
-            if episode > warmup_episodes:
-                agent.save_model(OUTPUT_DIR)
-
-        # print(f'Episode {episode:06d}\tAvg Score: {avg_score:.2f}\tBest Avg Score: {best_avg_score:.2f}')
-
-        # save best weights
-        if episode > warmup_episodes and avg_score > best_avg_score:
-            best_avg_score = avg_score
-            agent.save_model(OUTPUT_DIR)
-            print(f'Episode {episode:08d}\tWeights saved!\tBest Avg Score: {best_avg_score:.2f}')
-
-        # stop training if target score was reached
-        if episode > warmup_episodes and avg_score >= target_score:
-            agent.save_model(OUTPUT_DIR)
-            print(f'\nEnvironment solved in {episode} episodes!\tAverage Score: {avg_score:.2f}')
-            break
-
-    agent.save_model(OUTPUT_DIR)
-    print(f'Training finished!\tBest Avg Score: {best_avg_score:.2f}')

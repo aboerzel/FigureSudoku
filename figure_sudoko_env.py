@@ -1,6 +1,10 @@
 import itertools
 import numpy as np
+import gym
 from enum import Enum
+
+from gym.spaces import MultiDiscrete, MultiBinary, Box, Discrete
+
 from shapes import Geometry, Color
 from sudoku_generator import SudokuGenerator
 
@@ -11,12 +15,14 @@ class Reward(Enum):
     DONE = 10
 
 
-class FigureSudokuEnv:
+class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, geometries, colors, gui=None):
-        self.geometries = geometries
-        self.colors = colors
+    def __init__(self, level=12, gui=None):
+        super(FigureSudokuEnv, self).__init__()
+        self.level = level
         self.gui = gui
+        self.geometries = np.array([Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON])
+        self.colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
         self.rows = len(self.geometries)
         self.cols = len(self.colors)
         self.figures = np.array(list(itertools.product(self.geometries, self.colors)))
@@ -24,19 +30,26 @@ class FigureSudokuEnv:
         self.actions = np.array(list(itertools.product(self.figures, fields)), dtype=object)
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
 
-        self.state_size = len(self.state.flatten())
-        self.action_size = len(self.actions)
+        #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
+        self.action_space = Discrete(n=len(self.actions))
+        self.observation_space = Box(shape=(32,), low=-1, high=3, dtype=np.int)
+        self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
 
-        self.generator = SudokuGenerator(geometries, colors)
+        self.generator = SudokuGenerator(self.geometries, self.colors)
 
-    def reset(self, level=1):
-        initial_items = (self.rows * self.cols) - level
+    def reset(self):
+        initial_items = (self.rows * self.cols) - self.level
         self.state = self.generator.generate(initial_items=initial_items)[1]
 
+        if self.gui is not None:
+            self.gui.display_state(self.state)
+
+        return self.state.flatten()
+
+    def render(self, **kwargs):
         # update gui
         if self.gui is not None:
             self.gui.display_state(self.state)
-        return self.state.flatten()
 
     def get_possible_actions(self, state):
         state = state.reshape(16, 2)
@@ -46,7 +59,8 @@ class FigureSudokuEnv:
         used_figures = [[Geometry(f[0]), Color(f[1])] for f in used_figures]
 
         # get used cells
-        test = np.array([a for a in np.where(np.logical_and(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))]).squeeze(axis=0)
+        test = np.array([a for a in np.where(
+            np.logical_and(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))]).squeeze(axis=0)
 
         used_cells = []
         for x in test:
@@ -65,7 +79,7 @@ class FigureSudokuEnv:
         # get indices
         possible_actions_ind = np.where([True if len([a for a in possible_actions if
                                                       a[0][0] == b[0][0] and a[0][1] == b[0][1] and a[1][0] == b[1][0]
-                                                        and a[1][1] == b[1][1]]) > 0 else False for b in self.actions])[0]
+                                                      and a[1][1] == b[1][1]]) > 0 else False for b in self.actions])[0]
 
         return possible_actions_ind
 
@@ -75,25 +89,31 @@ class FigureSudokuEnv:
         (geometry, color) = target_action[0]
         (row, col) = target_action[1]
 
+        #row = action[0]
+        #col = action[1]
+        #geometry = Geometry(action[2])
+        #color = Color(action[3])
+
         temp_state = [geometry.value, color.value]
+        info = {}
 
         if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
 
         if not FigureSudokuEnv.is_field_empty(self.state, row, col):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
 
         if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
 
         self.state[row][col] = temp_state
-        done = FigureSudokuEnv.is_done(self.state)
-        reward = Reward.DONE.value if done else Reward.CONTINUE.value
 
         if self.gui is not None:
             self.gui.display_state(self.state)
 
-        return self.state.flatten(), reward, done
+        done = FigureSudokuEnv.is_done(self.state)
+        reward = Reward.DONE.value if done else Reward.CONTINUE.value
+        return self.state.flatten(), reward, done, info
 
     @staticmethod
     def is_field_empty(state, row, col):
@@ -107,7 +127,8 @@ class FigureSudokuEnv:
     @staticmethod
     def is_done(state):
         state = state.reshape(state.shape[0] * state.shape[1], 2)
-        return len(np.where(np.logical_or(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))[0]) == 0
+        return len(
+            np.where(np.logical_or(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))[0]) == 0
 
     @staticmethod
     def can_move(state, row, col, geometry, color):
