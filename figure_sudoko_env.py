@@ -10,8 +10,8 @@ from sudoku_generator import SudokuGenerator
 
 
 class Reward(Enum):
-    FORBIDDEN = -10
-    CONTINUE = -1
+    FORBIDDEN = -1
+    CONTINUE = 0
     DONE = 10
 
 
@@ -30,8 +30,13 @@ class FigureSudokuEnv(gym.Env):
         self.actions = np.array(list(itertools.product(self.figures, fields)), dtype=object)
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
 
-        self.action_space = Discrete(n=len(self.actions))
+        #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
+        #self.action_space = Discrete(n=len(self.actions))
+        self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.int)
+
+        #self.observation_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
         self.observation_space = Box(shape=(32,), low=-1, high=3, dtype=np.int)
+
         self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
@@ -92,13 +97,13 @@ class FigureSudokuEnv(gym.Env):
         info = {}
 
         if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
+            return self.state.flatten(), Reward.FORBIDDEN.value, True, info
 
         if not FigureSudokuEnv.is_field_empty(self.state, row, col):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
+            return self.state.flatten(), Reward.FORBIDDEN.value, True, info
 
         if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
+            return self.state.flatten(), Reward.FORBIDDEN.value, True, info
 
         self.state[row][col] = temp_state
 

@@ -5,6 +5,7 @@ from figure_sudoko_env import FigureSudokuEnv
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
 from stable_baselines3.ppo import MlpPolicy
+from gym.envs.registration import register
 
 
 class TimeLimitWrapper(gym.Wrapper):
@@ -34,7 +35,7 @@ class TimeLimitWrapper(gym.Wrapper):
         :return: (np.ndarray, float, bool, dict) observation, reward, is the episode over?, additional informations
         """
         self.current_step += 1
-        obs, reward, done, info = self.env.step(action)
+        obs, reward, done, info = self.env.step(int(action))
         # Overwrite the done signal when
         if self.current_step >= self.max_steps:
             done = True
@@ -97,10 +98,25 @@ def train_sudoku(gui, stop):
     env = FigureSudokuEnv(level=12, gui=gui)
     env = TimeLimitWrapper(env, max_steps=MAX_TIMESTEPS)
     #env = NormalizeActionWrapper(env)
-    check_env(env)
+    #check_env(env)
 
+    # Example for the FigureSudoku environment
+    #env_id = "FigureSudoku-v1"
+    #register(
+    #    # unique identifier for the env `name-version`
+    #    id=env_id,
+    #    # path to the class for creating the env
+    #    # Note: entry_point also accept a class as input (and not only a string)
+    #    entry_point="figure_sudoko_env:FigureSudokuEnv",
+    #    # Max number of steps per episode, using a `TimeLimitWrapper`
+    ##    max_episode_steps=200,
+    #)
+
+    #env1 = gym.make(env_id, num_env=8)
+
+    model = PPO(MlpPolicy, env=env, verbose=1, batch_size=128, use_sde=True, tensorboard_log="runs", device="cuda")
     #model = PPO.load(MODEL_PATH)
-    model = PPO(MlpPolicy, env=env, verbose=1, batch_size=128, tensorboard_log="runs", device="cuda")
+    #model.set_env(env)
 
     for epoch in range(1, EPISODES):
         model.learn(total_timesteps=MAX_TIMESTEPS, reset_num_timesteps=False)
