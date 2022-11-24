@@ -10,14 +10,15 @@ from sudoku_generator import SudokuGenerator
 
 
 class Reward(Enum):
-    FORBIDDEN = -1
-    CONTINUE = 0
-    DONE = 10
+    LOSS = -50
+    FORBIDDEN = -2
+    CONTINUE = 1
+    DONE = 50
 
 
 class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, level=12, gui=None):
+    def __init__(self, level=1, gui=None):
         super(FigureSudokuEnv, self).__init__()
         self.level = level
         self.gui = gui
@@ -29,21 +30,29 @@ class FigureSudokuEnv(gym.Env):
         fields = np.array(list(itertools.product(np.arange(self.rows), np.arange(self.cols))))
         self.actions = np.array(list(itertools.product(self.figures, fields)), dtype=object)
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
+        self.solved_state = self.state
 
         #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
         #self.action_space = Discrete(n=len(self.actions))
-        self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.int)
+
+        self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
 
         #self.observation_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
         self.observation_space = Box(shape=(32,), low=-1, high=3, dtype=np.int)
 
-        self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
+        #geometry_values = [e.value for e in Geometry]
+        #color_values = [e.value for e in Color]
+        #self.observation_space = Box(low=np.array([np.min(geometry_values), np.min(color_values)]),
+        #                             high=np.array([np.max(geometry_values), np.max(color_values)]),
+        #                             dtype=np.int)
+
+        self.reward_range = (Reward.LOSS.value, Reward.DONE.value)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
 
     def reset(self):
         initial_items = (self.rows * self.cols) - self.level
-        self.state = self.generator.generate(initial_items=initial_items)[1]
+        self.solved_state, self.state = self.generator.generate(initial_items=initial_items)
 
         if self.gui is not None:
             self.gui.display_state(self.state)
@@ -88,7 +97,8 @@ class FigureSudokuEnv(gym.Env):
         return possible_actions_ind
 
     def step(self, action):
-        target_action = self.actions[action]
+        index = self.rescale_action(action[0])
+        target_action = self.actions[index]
 
         (geometry, color) = target_action[0]
         (row, col) = target_action[1]
@@ -97,22 +107,37 @@ class FigureSudokuEnv(gym.Env):
         info = {}
 
         if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, True, info
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
 
         if not FigureSudokuEnv.is_field_empty(self.state, row, col):
-            return self.state.flatten(), Reward.FORBIDDEN.value, True, info
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
 
         if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, True, info
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
 
         self.state[row][col] = temp_state
 
         if self.gui is not None:
             self.gui.display_state(self.state)
 
+        #diff = (self.solved_state+1) - (self.state+1)
+        #diff = np.where(diff > 0)
+        #sum = np.sum(diff)
+        #done = True if sum == 0 else False
+        #reward = Reward.DONE.value if done else -sum  # Reward.FORBIDDEN.value
+
         done = FigureSudokuEnv.is_done(self.state)
         reward = Reward.DONE.value if done else Reward.CONTINUE.value
+
+        if done:
+            print(f'DONE')
+
         return self.state.flatten(), reward, done, info
+
+    def rescale_action(self, scaled_action):
+        low = 0
+        high = len(self.actions)
+        return int(low + (0.5 * (scaled_action + 1.0) * (high - low)))
 
     @staticmethod
     def is_field_empty(state, row, col):

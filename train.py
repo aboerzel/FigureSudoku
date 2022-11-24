@@ -1,9 +1,13 @@
 import gym
 import numpy as np
+#from sb3_contrib import RecurrentPPO
+from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 
-from figure_sudoko_env import FigureSudokuEnv
+from figure_sudoko_env import FigureSudokuEnv, Reward
 from stable_baselines3.common.env_checker import check_env
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC, DDPG
+
 from stable_baselines3.ppo import MlpPolicy
 from gym.envs.registration import register
 
@@ -35,10 +39,11 @@ class TimeLimitWrapper(gym.Wrapper):
         :return: (np.ndarray, float, bool, dict) observation, reward, is the episode over?, additional informations
         """
         self.current_step += 1
-        obs, reward, done, info = self.env.step(int(action))
+        obs, reward, done, info = self.env.step(action)
         # Overwrite the done signal when
         if self.current_step >= self.max_steps:
             done = True
+            reward = Reward.LOSS.value
             # Update the info dict to signal that the limit was exceeded
             info['time_limit_reached'] = True
         return obs, reward, done, info
@@ -90,15 +95,15 @@ class NormalizeActionWrapper(gym.Wrapper):
 
 MODEL_PATH = "output/sudoku"
 MAX_TIMESTEPS = 200
-EPISODES = 10000000
+EPISODES = 1000000
 
 
 def train_sudoku(gui, stop):
     # create environment
-    env = FigureSudokuEnv(level=12, gui=gui)
+    env = FigureSudokuEnv(level=4, gui=gui)
     env = TimeLimitWrapper(env, max_steps=MAX_TIMESTEPS)
     #env = NormalizeActionWrapper(env)
-    #check_env(env)
+    check_env(env)
 
     # Example for the FigureSudoku environment
     #env_id = "FigureSudoku-v1"
@@ -114,13 +119,17 @@ def train_sudoku(gui, stop):
 
     #env1 = gym.make(env_id, num_env=8)
 
-    model = PPO(MlpPolicy, env=env, verbose=1, batch_size=128, use_sde=True, tensorboard_log="runs", device="cuda")
+    model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log="runs", device="auto")
+
+    #model = RecurrentPPO("MlpLstmPolicy", env=env, verbose=1, batch_size=128, learning_rate=3e-6, tensorboard_log="runs", device="cuda")
+
+    #model = PPO(MlpPolicy, env=env, verbose=1, batch_size=64, use_sde=False, learning_rate=3e-5, tensorboard_log="runs", device="cuda")
     #model = PPO.load(MODEL_PATH)
     #model.set_env(env)
 
-    for epoch in range(1, EPISODES):
-        model.learn(total_timesteps=MAX_TIMESTEPS, reset_num_timesteps=False)
-        model.save(MODEL_PATH)
+    #for epoch in range(1, EPISODES):
+    model.learn(total_timesteps=EPISODES, reset_num_timesteps=False)
+    model.save(MODEL_PATH)
 
     del model  # delete trained model to demonstrate loading
     model = PPO.load(MODEL_PATH)
