@@ -11,7 +11,7 @@ from sudoku_generator import SudokuGenerator
 
 class Reward(Enum):
     FORBIDDEN = -1.0
-    CONTINUE = 0.01
+    CONTINUE = 0.0
     DONE = 1.0
 
 
