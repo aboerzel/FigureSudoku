@@ -10,10 +10,9 @@ from sudoku_generator import SudokuGenerator
 
 
 class Reward(Enum):
-    LOSS = -50
-    FORBIDDEN = -2
-    CONTINUE = 1
-    DONE = 50
+    FORBIDDEN = -1.0
+    CONTINUE = 0.01
+    DONE = 1.0
 
 
 class FigureSudokuEnv(gym.Env):
@@ -33,20 +32,18 @@ class FigureSudokuEnv(gym.Env):
         self.solved_state = self.state
 
         #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
-        #self.action_space = Discrete(n=len(self.actions))
+        #self.observation_space = MultiBinary([self.rows, self.cols, len(self.geometries), len(self.colors)])
 
-        self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
+        self.action_space = Discrete(n=len(self.actions))
 
-        #self.observation_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)])
-        self.observation_space = Box(shape=(32,), low=-1, high=3, dtype=np.int)
+        state_size = self.state.shape[0] * self.state.shape[1] * self.state.shape[2]
+        geometry_values = [e.value for e in Geometry]
+        color_values = [e.value for e in Color]
+        low = np.min(geometry_values), np.min(color_values)
+        high = np.max(geometry_values), np.max(color_values)
+        self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
 
-        #geometry_values = [e.value for e in Geometry]
-        #color_values = [e.value for e in Color]
-        #self.observation_space = Box(low=np.array([np.min(geometry_values), np.min(color_values)]),
-        #                             high=np.array([np.max(geometry_values), np.max(color_values)]),
-        #                             dtype=np.int)
-
-        self.reward_range = (Reward.LOSS.value, Reward.DONE.value)
+        self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
 
@@ -97,8 +94,7 @@ class FigureSudokuEnv(gym.Env):
         return possible_actions_ind
 
     def step(self, action):
-        index = self.rescale_action(action[0])
-        target_action = self.actions[index]
+        target_action = self.actions[action]
 
         (geometry, color) = target_action[0]
         (row, col) = target_action[1]
