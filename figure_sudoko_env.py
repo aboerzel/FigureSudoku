@@ -36,11 +36,11 @@ class FigureSudokuEnv(gym.Env):
 
         self.action_space = Discrete(n=len(self.actions))
 
-        state_size = self.state.shape[0] * self.state.shape[1] * self.state.shape[2]
+        state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
         color_values = [e.value for e in Color]
-        low = np.min(geometry_values), np.min(color_values)
-        high = np.max(geometry_values), np.max(color_values)
+        low = min(np.min(geometry_values), np.min(color_values))
+        high = max(np.max(geometry_values), np.max(color_values))
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
 
         self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)

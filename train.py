@@ -1,9 +1,14 @@
+
 import gym
 import numpy as np
 #from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack
 
+import config
+from callbacks import SaveOnBestTrainingRewardCallback
 from figure_sudoko_env import FigureSudokuEnv, Reward
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO, SAC, DDPG, A2C
@@ -96,17 +101,14 @@ class NormalizeActionWrapper(gym.Wrapper):
         return obs, reward, done, info
 
 
-MODEL_PATH = "output/sudoku"
-MAX_TIMESTEPS = 200
-EPISODES = 1000000
-
-
 def train_sudoku(gui, stop):
     # create environment
     env = FigureSudokuEnv(level=5, gui=gui)
-    env = TimeLimitWrapper(env, max_steps=MAX_TIMESTEPS)
+    env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
     #env = NormalizeActionWrapper(env)
     check_env(env)
+
+    env = Monitor(env, 'output')
 
     # Example for the FigureSudoku environment
     #env_id = "FigureSudoku-v1"
@@ -124,25 +126,45 @@ def train_sudoku(gui, stop):
 
     #model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log="runs", device="auto")
 
-    model = A2C("MlpPolicy", env=env, verbose=1, learning_rate=3e-5, tensorboard_log="runs", device="cuda")
+    #model = A2C("MlpPolicy", env=env, verbose=1, learning_rate=3e-5, tensorboard_log="runs", device="cuda")
+    #model = A2C("MlpPolicy", env=env, verbose=1, tensorboard_log="runs", device="cuda")
     #model = PPO(MlpPolicy, env=env, verbose=1, batch_size=64, use_sde=False, learning_rate=3e-5, tensorboard_log="runs", device="cuda")
+    model = PPO(MlpPolicy, env=env, verbose=1, tensorboard_log="runs", device="cuda")
     #model = PPO.load(MODEL_PATH)
     #model.set_env(env)
 
     #for epoch in range(1, EPISODES):
     #model.learn(total_timesteps=EPISODES, reset_num_timesteps=False)
     #model.learn(total_timesteps=EPISODES, reset_num_timesteps=False, progress_bar=True)
-    model.learn(total_timesteps=10000000, progress_bar=True)
-    model.save(MODEL_PATH)
+    callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir='output')
+    model.learn(total_timesteps=10000000, callback=callback, progress_bar=True)
+    model.save(config.MODEL_PATH)
 
-    del model  # delete trained model to demonstrate loading
-    model = PPO.load(MODEL_PATH)
 
-    obs = env.reset()
-    for i in range(30):
-        action, _states = model.predict(obs, deterministic=True)
-        print(action)
-        obs, reward, done, info = env.step(action)
-        env.render()
-        if done:
-            break
+def make_sudoku_env(env_id):
+    env = FigureSudokuEnv(level=5, gui=None)
+    env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
+    # env = NormalizeActionWrapper(env)
+    check_env(env)
+    env = Monitor(env, f'{config.OUTPUT_DIR}/env{env_id}')
+    return env
+
+
+def make_env(rank):
+    def _thunk():
+        env = make_sudoku_env(rank)
+        return env
+
+    return _thunk
+
+
+def make_vec_env(num_envs):
+    envs = SubprocVecEnv([make_env(i) for i in range(num_envs)])
+    return envs
+
+
+if __name__ == '__main__':
+    vec_env = make_vec_env(config.NUM_AGENTS)
+    model = A2C(MlpPolicy, env=vec_env, verbose=1, tensorboard_log="runs", device="cuda")
+    callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
+    model.learn(total_timesteps=config.TOTAL_TIMESTEPS, callback=callback, progress_bar=True)

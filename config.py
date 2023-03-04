@@ -1,0 +1,11 @@
+import os
+
+OUTPUT_DIR = "output"
+
+MODEL_NAME = "sudoku.zip"
+
+MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
+
+MAX_TIMESTEPS = 200
+TOTAL_TIMESTEPS = 50000000
+NUM_AGENTS = 20

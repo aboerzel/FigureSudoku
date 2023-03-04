@@ -5,8 +5,8 @@ from tkinter import *
 import tkinter as tk
 import numpy as np
 
+from evaluate import play_sudoku
 from shapes import Geometry, Color
-from train import train_sudoku
 
 
 class GridCell:
@@ -188,7 +188,8 @@ class SudokuApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close_window)
 
         self.stop_train = False
-        self.train_thread = Thread(target=train_sudoku, args=(self, lambda: self.stop_train)).start()
+        self.level = 5
+        self.train_thread = Thread(target=play_sudoku, args=(self, self.level, lambda: self.stop_train)).start()
 
     def close_window(self):
         self.stop_train = True
