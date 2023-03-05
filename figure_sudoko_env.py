@@ -35,6 +35,7 @@ class FigureSudokuEnv(gym.Env):
         #self.observation_space = MultiBinary([self.rows, self.cols, len(self.geometries), len(self.colors)])
 
         self.action_space = Discrete(n=len(self.actions))
+        #self.action_space = Box(shape=(len(self.actions),), low=0, high=len(self.actions)-1, dtype=np.int32)
 
         state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
