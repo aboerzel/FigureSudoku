@@ -4,9 +4,12 @@ from threading import Thread
 from tkinter import *
 import tkinter as tk
 import numpy as np
+from stable_baselines3 import A2C
 
-from evaluate import play_sudoku
+import config
+from figure_sudoko_env import FigureSudokuEnv
 from shapes import Geometry, Color
+from sudoku_generator import SudokuGenerator
 
 
 class GridCell:
@@ -163,8 +166,12 @@ class GridCell:
 
 
 class SudokuApp(tk.Tk):
-    def __init__(self):
+    def __init__(self, model, env, generator):
         super().__init__()
+
+        self.model = model
+        self.env = env
+        self.generator = generator
 
         self.rows = 4
         self.cols = 4
@@ -188,8 +195,11 @@ class SudokuApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close_window)
 
         self.stop_train = False
-        self.level = 5
-        self.train_thread = Thread(target=play_sudoku, args=(self, self.level, lambda: self.stop_train)).start()
+
+        level = 3
+        game_state = self.new_game(level=level)
+
+        self.train_thread = Thread(target=self.solve, args=game_state).start()
 
     def close_window(self):
         self.stop_train = True
@@ -211,8 +221,30 @@ class SudokuApp(tk.Tk):
                 (geometry, color) = state[row][col]
                 self.grid[row][col].set_shape(geometry, color)
 
+    def new_game(self, level):
+        initial_items = (self.rows * self.cols) - level
+        _, self.state = self.generator.generate(initial_items=initial_items)
+        self.display_state(self.state)
+        return self.state.flatten()
+
+    def solve(self, state, max_attempts=10):
+        for i in range(1, max_attempts+1):
+            action, _states = self.model.predict(state, deterministic=True)
+            print(action)
+            state, reward, done, info = self.env.step(action)
+            self.display_state(state)
+            if done:
+                print(f'solved in {i} attempts!')
+                return
+
+        print(f'could not be solved with the maximum number of {max_attempts} attempts!')
+
 
 if __name__ == "__main__":
-    app = SudokuApp()
+    model = A2C.load(config.MODEL_PATH)
+    env = FigureSudokuEnv()
+    generator = SudokuGenerator(env.geometries, env.colors)
+
+    app = SudokuApp(model, env, generator)
     app.mainloop()
 
