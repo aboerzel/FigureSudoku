@@ -35,7 +35,7 @@ class FigureSudokuEnv(gym.Env):
         #self.observation_space = MultiBinary([self.rows, self.cols, len(self.geometries), len(self.colors)])
 
         self.action_space = Discrete(n=len(self.actions))
-        #self.action_space = Box(shape=(len(self.actions),), low=0, high=len(self.actions)-1, dtype=np.int32)
+        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.float32)
 
         state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
@@ -116,12 +116,6 @@ class FigureSudokuEnv(gym.Env):
 
         if self.gui is not None:
             self.gui.display_state(self.state)
-
-        #diff = (self.solved_state+1) - (self.state+1)
-        #diff = np.where(diff > 0)
-        #sum = np.sum(diff)
-        #done = True if sum == 0 else False
-        #reward = Reward.DONE.value if done else -sum  # Reward.FORBIDDEN.value
 
         done = FigureSudokuEnv.is_done(self.state)
         reward = Reward.DONE.value if done else Reward.CONTINUE.value
