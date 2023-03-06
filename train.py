@@ -1,7 +1,8 @@
+import os
 
 import gym
 import numpy as np
-from sb3_contrib import RecurrentPPO
+from sb3_contrib import RecurrentPPO, TRPO
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
@@ -105,9 +106,15 @@ def make_vec_env(num_envs, level):
 
 if __name__ == '__main__':
     vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
-    model = A2C(MlpPolicy, env=vec_env, verbose=1, tensorboard_log="runs", device="cuda")
-    #model = A2C.load(config.MODEL_PATH)
-    #model.set_env(env=vec_env)
+
+    if os.path.isfile(config.MODEL_PATH):
+        model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log="runs", device="cuda")
+        model.set_env(env=vec_env)
+    else:
+        model = A2C(MlpPolicy, env=vec_env, use_rms_prop=False, use_sde=False, verbose=1, tensorboard_log="runs", device="cuda")
 
     callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
     model.learn(total_timesteps=config.TOTAL_TIMESTEPS, callback=callback, progress_bar=True)
+
+    stats_path = os.path.join(config.OUTPUT_DIR, "vec_normalize.pkl")
+    vec_env.save(stats_path)
