@@ -129,8 +129,8 @@ class FigureSudokuEnv(gym.Env):
         done = FigureSudokuEnv.is_done(self.state)
         reward = Reward.DONE.value if done else Reward.CONTINUE.value
 
-        if done:
-            print(f'DONE')
+        #if done:
+        #    print(f'DONE')
 
         return self.state.flatten(), reward, done, info
 

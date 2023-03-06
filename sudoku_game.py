@@ -1,3 +1,4 @@
+import argparse
 import math
 import os
 import random
@@ -10,6 +11,10 @@ from stable_baselines3 import A2C
 import config
 from figure_sudoko_env import FigureSudokuEnv
 from shapes import Geometry, Color
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-l", "--level", required=False, default=3, type=int, help="start level")
+args = vars(ap.parse_args())
 
 
 class GridCell:
@@ -166,11 +171,12 @@ class GridCell:
 
 
 class SudokuApp(tk.Tk):
-    def __init__(self, model, env):
+    def __init__(self, model, env, level):
         super().__init__()
 
         self.model = model
         self.env = env
+        self.level = level
 
         self.rows = 4
         self.cols = 4
@@ -197,13 +203,13 @@ class SudokuApp(tk.Tk):
         self.game_state = None
 
     def create_game(self):
-        self.game_state = self.env.reset_with_level(level=4)
+        self.game_state = self.env.reset_with_level(level=self.level)
         self.display_state(self.game_state)
 
     def solve_game(self):
         if self.game_state is not None:
             #self.solve(self.game_state)
-            Thread(target=self.solve, args=[10]).start()
+            Thread(target=self.solve, args=[]).start()
 
     def close_window(self):
         self.stop_train = True
@@ -236,22 +242,23 @@ class SudokuApp(tk.Tk):
                 (geometry, color) = state[row][col]
                 self.grid[row][col].set_shape(geometry, color)
 
-    def solve(self, max_moves=10):
-        for i in range(1, max_moves+1):
+    def solve(self):
+        actions = []
+        for i in range(1, self.level+1):
             action, _states = self.model.predict(self.game_state, deterministic=True)
-            print(action)
+            actions.append(action)
             self.game_state, reward, done, info = self.env.step(action)
             self.display_state(self.game_state)
             if done:
-                print(f'game solved in {i} moves!')
+                print(f'Sudoku solved in {i} moves! {np.array(actions)}')
                 return
 
-        print(f'game could not be solved with the maximum number of {max_moves} moves!')
+        print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
 
 
 if __name__ == "__main__":
     MODEL_PATH = os.path.join(config.OUTPUT_DIR, "test.zip")
     model = A2C.load(MODEL_PATH)
     env = FigureSudokuEnv()
-    app = SudokuApp(model, env)
+    app = SudokuApp(model, env, args['level'])
     app.mainloop()
