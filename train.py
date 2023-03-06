@@ -100,7 +100,7 @@ def make_env(env_id, level):
 
 def make_vec_env(num_envs, level):
     envs = SubprocVecEnv([make_env(env_id=i, level=level) for i in range(num_envs)])
-    envs = VecNormalize(envs, norm_obs=True, norm_reward=True, clip_obs=256, clip_reward=1)
+    #envs = VecNormalize(envs, norm_obs=True, norm_reward=True, clip_obs=256, clip_reward=1)
     return envs
 
 
@@ -116,5 +116,5 @@ if __name__ == '__main__':
     callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
     model.learn(total_timesteps=config.TOTAL_TIMESTEPS, callback=callback, progress_bar=True)
 
-    stats_path = os.path.join(config.OUTPUT_DIR, "vec_normalize.pkl")
-    vec_env.save(stats_path)
+    #stats_path = os.path.join(config.OUTPUT_DIR, "vec_normalize.pkl")
+    #vec_env.save(stats_path)

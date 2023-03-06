@@ -57,6 +57,15 @@ class FigureSudokuEnv(gym.Env):
 
         return self.state.flatten()
 
+    def reset_with_level(self, level):
+        initial_items = (self.rows * self.cols) - level
+        self.solved_state, self.state = self.generator.generate(initial_items=initial_items)
+
+        if self.gui is not None:
+            self.gui.display_state(self.state)
+
+        return self.state.flatten()
+
     def render(self, **kwargs):
         # update gui
         if self.gui is not None:

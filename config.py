@@ -5,6 +5,7 @@ OUTPUT_DIR = "output"
 MODEL_NAME = "sudoku.zip"
 
 MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
+NORMALIZATION_PARAMETER_FILE = os.path.join(OUTPUT_DIR, "vec_normalize.pkl")
 
 MAX_TIMESTEPS = 200
 TOTAL_TIMESTEPS = 100000000

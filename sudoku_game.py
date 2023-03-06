@@ -1,4 +1,5 @@
 import math
+import os
 import random
 from threading import Thread
 from tkinter import *
@@ -9,7 +10,6 @@ from stable_baselines3 import A2C
 import config
 from figure_sudoko_env import FigureSudokuEnv
 from shapes import Geometry, Color
-from sudoku_generator import SudokuGenerator
 
 
 class GridCell:
@@ -166,18 +166,17 @@ class GridCell:
 
 
 class SudokuApp(tk.Tk):
-    def __init__(self, model, env, generator):
+    def __init__(self, model, env):
         super().__init__()
 
         self.model = model
         self.env = env
-        self.generator = generator
 
         self.rows = 4
         self.cols = 4
-        self.cell_width = self.cell_height = 80
+        self.cell_width = self.cell_height = 82
 
-        self.width = self.cell_width * self.cols
+        self.width = self.cell_width * self.cols + 80
         self.height = self.cell_height * self.rows
 
         self.geometry(f"{self.width}x{self.height}")
@@ -195,11 +194,16 @@ class SudokuApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close_window)
 
         self.stop_train = False
+        self.game_state = None
 
-        level = 3
-        game_state = self.new_game(level=level)
+    def create_game(self):
+        self.game_state = self.env.reset_with_level(level=4)
+        self.display_state(self.game_state)
 
-        self.train_thread = Thread(target=self.solve, args=game_state).start()
+    def solve_game(self):
+        if self.game_state is not None:
+            #self.solve(self.game_state)
+            Thread(target=self.solve, args=[10]).start()
 
     def close_window(self):
         self.stop_train = True
@@ -213,38 +217,41 @@ class SudokuApp(tk.Tk):
             for col in range(self.cols):
                 self.grid[row][col] = GridCell(board, row, col, width=self.cell_width, height=self.cell_height)
 
-        board.pack(fill=BOTH, expand=1)
+        board.pack(fill=BOTH, expand=True)
+
+        sidebar = Frame(board, width=100, bg='grey')
+
+        reset_button = Button(sidebar, text="New Game", command=self.create_game)
+        reset_button.pack(anchor=CENTER, padx=5, pady=5)
+
+        solve_button = Button(sidebar, text="Solve", command=self.solve_game)
+        solve_button.pack(anchor=CENTER, padx=5, pady=5)
+
+        sidebar.pack(anchor=E, fill=Y, expand=False, side=RIGHT)
 
     def display_state(self, state):
+        state = state.reshape(self.rows, self.cols, 2)
         for row in range(self.rows):
             for col in range(self. cols):
                 (geometry, color) = state[row][col]
                 self.grid[row][col].set_shape(geometry, color)
 
-    def new_game(self, level):
-        initial_items = (self.rows * self.cols) - level
-        _, self.state = self.generator.generate(initial_items=initial_items)
-        self.display_state(self.state)
-        return self.state.flatten()
-
-    def solve(self, state, max_attempts=10):
-        for i in range(1, max_attempts+1):
-            action, _states = self.model.predict(state, deterministic=True)
+    def solve(self, max_moves=10):
+        for i in range(1, max_moves+1):
+            action, _states = self.model.predict(self.game_state, deterministic=True)
             print(action)
-            state, reward, done, info = self.env.step(action)
-            self.display_state(state)
+            self.game_state, reward, done, info = self.env.step(action)
+            self.display_state(self.game_state)
             if done:
-                print(f'solved in {i} attempts!')
+                print(f'game solved in {i} moves!')
                 return
 
-        print(f'could not be solved with the maximum number of {max_attempts} attempts!')
+        print(f'game could not be solved with the maximum number of {max_moves} moves!')
 
 
 if __name__ == "__main__":
-    model = A2C.load(config.MODEL_PATH)
+    MODEL_PATH = os.path.join(config.OUTPUT_DIR, "test.zip")
+    model = A2C.load(MODEL_PATH)
     env = FigureSudokuEnv()
-    generator = SudokuGenerator(env.geometries, env.colors)
-
-    app = SudokuApp(model, env, generator)
+    app = SudokuApp(model, env)
     app.mainloop()
-
