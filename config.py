@@ -1,6 +1,11 @@
 import os
 
-OUTPUT_DIR = "output"
+LEVEL = 6
+
+TRAIN_NAME = f"LEVEL_{LEVEL}"
+
+OUTPUT_DIR = os.path.join("output", TRAIN_NAME)
+TENSORBOARD_LOG = os.path.join(OUTPUT_DIR, "runs")
 
 MODEL_NAME = "sudoku.zip"
 
@@ -8,6 +13,5 @@ MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
 NORMALIZATION_PARAMETER_FILE = os.path.join(OUTPUT_DIR, "vec_normalize.pkl")
 
 MAX_TIMESTEPS = 200
-TOTAL_TIMESTEPS = 100000000
+TOTAL_TIMESTEPS = 2000000000
 NUM_AGENTS = 10
-LEVEL = 3

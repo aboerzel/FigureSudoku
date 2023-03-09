@@ -57,31 +57,6 @@ class TimeLimitWrapper(gym.Wrapper):
         self.env.render(**kwargs)
 
 
-def train_sudoku(gui, level, stop):
-    # create environment
-    env = FigureSudokuEnv(level=level, gui=gui)
-    env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
-    check_env(env)
-
-    env = Monitor(env, config.OUTPUT_DIR)
-
-    #model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log="runs", device="auto")
-
-    #model = A2C("MlpPolicy", env=env, verbose=1, learning_rate=3e-5, tensorboard_log="runs", device="cuda")
-    model = A2C("MlpPolicy", env=env, verbose=1, tensorboard_log="runs", device="cuda")
-
-    #model = PPO(MlpPolicy, env=env, verbose=1, batch_size=64, use_sde=False, learning_rate=3e-5, tensorboard_log="runs", device="cuda")
-    #model = PPO(MlpPolicy, env=env, verbose=1, tensorboard_log="runs", device="cuda")
-    #model = PPO.load(MODEL_PATH)
-    #model.set_env(env)
-
-    #for epoch in range(1, EPISODES):
-    #model.learn(total_timesteps=EPISODES, reset_num_timesteps=False, progress_bar=True)
-    callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir='output')
-    model.learn(total_timesteps=10000000, callback=callback, progress_bar=True)
-    model.save(config.MODEL_PATH)
-
-
 def make_sudoku_env(env_id, level):
     env = FigureSudokuEnv(level=level, gui=None)
     env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
@@ -108,13 +83,17 @@ if __name__ == '__main__':
     vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
 
     if os.path.isfile(config.MODEL_PATH):
-        model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log="runs", device="cuda")
+        model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log=config.TENSORBOARD_LOG, device="cuda")
         model.set_env(env=vec_env)
     else:
-        model = A2C(MlpPolicy, env=vec_env, use_rms_prop=False, use_sde=False, verbose=1, tensorboard_log="runs", device="cuda")
+        model = A2C(MlpPolicy, env=vec_env, use_rms_prop=False, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_LOG, device="cuda")
+        #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_LOG, device="cuda")
+        #model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log=config.TENSORBOARD_LOG, device="auto")
+        #model = PPO(MlpPolicy, env=env, verbose=1, batch_size=64, use_sde=False, learning_rate=3e-5, tensorboard_log=config.TENSORBOARD_LOG, device="auto")
 
     callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
     model.learn(total_timesteps=config.TOTAL_TIMESTEPS, callback=callback, progress_bar=True)
 
     #stats_path = os.path.join(config.OUTPUT_DIR, "vec_normalize.pkl")
     #vec_env.save(stats_path)
+    print('Training finished!')
