@@ -1,9 +1,11 @@
 import os
 
 import gym
-import numpy as np
-from sb3_contrib import RecurrentPPO, TRPO
+from sb3_contrib import RecurrentPPO, TRPO, ARS
+from sb3_contrib.ars.policies import ARSPolicy
+from sb3_contrib.ppo_recurrent import MlpLstmPolicy
 from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.callbacks import EvalCallback, CallbackList, StopTrainingOnRewardThreshold
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecNormalize
@@ -59,7 +61,7 @@ class TimeLimitWrapper(gym.Wrapper):
 
 def make_sudoku_env(env_id, level):
     env = FigureSudokuEnv(level=level, gui=None)
-    env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
+    #env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
     check_env(env)
     env = Monitor(env, f'{config.OUTPUT_DIR}/env{env_id}')
     return env
@@ -75,7 +77,6 @@ def make_env(env_id, level):
 
 def make_vec_env(num_envs, level):
     envs = SubprocVecEnv([make_env(env_id=i, level=level) for i in range(num_envs)])
-    #envs = VecNormalize(envs, norm_obs=True, norm_reward=True, clip_obs=256, clip_reward=1)
     return envs
 
 
@@ -83,17 +84,29 @@ if __name__ == '__main__':
     vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
 
     if os.path.isfile(config.MODEL_PATH):
-        model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log=config.TENSORBOARD_LOG, device="cuda")
+        model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         model.set_env(env=vec_env)
     else:
-        model = A2C(MlpPolicy, env=vec_env, use_rms_prop=False, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_LOG, device="cuda")
-        #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_LOG, device="cuda")
-        #model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log=config.TENSORBOARD_LOG, device="auto")
-        #model = PPO(MlpPolicy, env=env, verbose=1, batch_size=64, use_sde=False, learning_rate=3e-5, tensorboard_log=config.TENSORBOARD_LOG, device="auto")
+        model = A2C(MlpPolicy, env=vec_env, learning_rate=1e-5, use_rms_prop=False, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = ARS(ARSPolicy, env=vec_env, learning_rate=0.0001, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
-    callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
+        #model = RecurrentPPO(MlpLstmPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+
+        #model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="auto")
+        #model = PPO(MlpPolicy, env=vec_env, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+
+    save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
+
+    eval_env = FigureSudokuEnv(level=config.LEVEL, gui=None)
+    eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
+    eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
+
+    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.DONE.value, verbose=1)
+    eval_callback = EvalCallback(eval_env, best_model_save_path=config.BEST_EVAL_MODEL_PATH, log_path=config.TENSORBOARD_EVAL_LOG, eval_freq=config.EVAL_FREQ, callback_on_new_best=callback_on_best)
+
+    callback = CallbackList([save_best_model_callback, eval_callback])
+
     model.learn(total_timesteps=config.TOTAL_TIMESTEPS, callback=callback, progress_bar=True)
 
-    #stats_path = os.path.join(config.OUTPUT_DIR, "vec_normalize.pkl")
-    #vec_env.save(stats_path)
     print('Training finished!')

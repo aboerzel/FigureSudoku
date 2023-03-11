@@ -1,17 +1,20 @@
 import os
 
-LEVEL = 6
+LEVEL = 10
 
 TRAIN_NAME = f"LEVEL_{LEVEL}"
 
 OUTPUT_DIR = os.path.join("output", TRAIN_NAME)
-TENSORBOARD_LOG = os.path.join(OUTPUT_DIR, "runs")
+TENSORBOARD_TRAIN_LOG = os.path.join(OUTPUT_DIR, "logs", "train")
+TENSORBOARD_EVAL_LOG = os.path.join(OUTPUT_DIR, "logs", "eval")
 
 MODEL_NAME = "sudoku.zip"
+BEST_EVAL_MODEL = "sudoku_best.zip"
 
 MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
-NORMALIZATION_PARAMETER_FILE = os.path.join(OUTPUT_DIR, "vec_normalize.pkl")
+BEST_EVAL_MODEL_PATH = os.path.join(OUTPUT_DIR, BEST_EVAL_MODEL)
 
 MAX_TIMESTEPS = 200
-TOTAL_TIMESTEPS = 2000000000
+TOTAL_TIMESTEPS = 5000000000
 NUM_AGENTS = 10
+EVAL_FREQ = 10000

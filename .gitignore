@@ -2,5 +2,5 @@
 pytorch/__pycache__
 __pycache__
 output
-runs
+logs
 /.ipynb_checkpoints/

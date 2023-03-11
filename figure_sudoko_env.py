@@ -33,7 +33,7 @@ class FigureSudokuEnv(gym.Env):
         self.solved_state = self.state
 
         self.action_space = SudokoActionSpace(n=len(self.actions), env=self)
-        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.float32)
+        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.int32)
 
         state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
@@ -41,6 +41,7 @@ class FigureSudokuEnv(gym.Env):
         low = min(np.min(geometry_values), np.min(color_values))
         high = max(np.max(geometry_values), np.max(color_values))
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
+        #self.observation_space = Box(shape=(self.rows, self.cols, 2), low=np.array([np.min(geometry_values), np.min(color_values)]), high=np.array([np.max(geometry_values), np.max(color_values)]), dtype=np.int32)
 
         self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
 
@@ -104,33 +105,59 @@ class FigureSudokuEnv(gym.Env):
     def step(self, action):
         target_action = self.actions[action]
 
+        # check if the action is valid
+        info = {}
+        if not self.is_valid_action(target_action):
+            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
+
+        # perform action if it is valid
         (geometry, color) = target_action[0]
         (row, col) = target_action[1]
-
-        temp_state = [geometry.value, color.value]
-        info = {}
-
-        if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
-
-        if not FigureSudokuEnv.is_field_empty(self.state, row, col):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
-
-        if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
-
-        self.state[row][col] = temp_state
+        self.state[row][col] = [geometry.value, color.value]
 
         if self.gui is not None:
             self.gui.display_state(self.state)
 
-        done = FigureSudokuEnv.is_done(self.state)
-        reward = Reward.DONE.value if done else Reward.CONTINUE.value
+        # check game solved or failed
+        solved = FigureSudokuEnv.is_done(self.state)
+        failed = not solved and self.is_game_finished()
 
-        if done:
-            print(f'DONE')
+        # finish the game when the game is won or lost
+        done = solved or failed
+        reward = Reward.CONTINUE.value
+
+        if failed:
+            reward = Reward.FORBIDDEN.value
+
+        if solved:
+            reward = Reward.DONE.value
+            print("SOLVED")
 
         return self.state.flatten(), reward, done, info
+
+    def is_game_finished(self):
+        possible_actions = self.get_possible_actions()
+        finished = True
+        for action in possible_actions:
+            if self.is_valid_action(self.actions[action]):
+                finished = False
+                break
+        return finished
+
+    def is_valid_action(self, action):
+        (geometry, color) = action[0]
+        (row, col) = action[1]
+
+        if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
+            return False
+
+        if not FigureSudokuEnv.is_field_empty(self.state, row, col):
+            return False
+
+        if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
+            return False
+
+        return True
 
     def rescale_action(self, normalized_action):
         low = 0
