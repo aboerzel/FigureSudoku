@@ -50,7 +50,7 @@ class TimeLimitWrapper(gym.Wrapper):
         # Overwrite the done signal when
         if self.current_step >= self.max_steps:
             done = True
-            #reward = Reward.LOSS.value
+            #reward = Reward.FAILED.value
             # Update the info dict to signal that the limit was exceeded
             info['time_limit_reached'] = True
         return obs, reward, done, info
@@ -87,7 +87,7 @@ if __name__ == '__main__':
         model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         model.set_env(env=vec_env)
     else:
-        model = A2C(MlpPolicy, env=vec_env, learning_rate=1e-5, use_rms_prop=False, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = A2C(MlpPolicy, env=vec_env, learning_rate=1e-5, use_rms_prop=True, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = ARS(ARSPolicy, env=vec_env, learning_rate=0.0001, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
     eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
 
-    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.DONE.value, verbose=1)
+    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
     eval_callback = EvalCallback(eval_env, best_model_save_path=config.BEST_EVAL_MODEL_PATH, log_path=config.TENSORBOARD_EVAL_LOG, eval_freq=config.EVAL_FREQ, callback_on_new_best=callback_on_best)
 
     callback = CallbackList([save_best_model_callback, eval_callback])

@@ -11,9 +11,9 @@ from sudoku_generator import SudokuGenerator
 
 
 class Reward(Enum):
-    FORBIDDEN = -1.0
+    FAILED = -1.0
     CONTINUE = 0.0
-    DONE = 1.0
+    SOLVED = 1.0
 
 
 class FigureSudokuEnv(gym.Env):
@@ -43,7 +43,7 @@ class FigureSudokuEnv(gym.Env):
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
         #self.observation_space = Box(shape=(self.rows, self.cols, 2), low=np.array([np.min(geometry_values), np.min(color_values)]), high=np.array([np.max(geometry_values), np.max(color_values)]), dtype=np.int32)
 
-        self.reward_range = (Reward.FORBIDDEN.value, Reward.DONE.value)
+        self.reward_range = (Reward.FAILED.value, Reward.SOLVED.value)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
 
@@ -108,7 +108,7 @@ class FigureSudokuEnv(gym.Env):
         # check if the action is valid
         info = {}
         if not self.is_valid_action(target_action):
-            return self.state.flatten(), Reward.FORBIDDEN.value, False, info
+            return self.state.flatten(), Reward.FAILED.value, False, info
 
         # perform action if it is valid
         (geometry, color) = target_action[0]
@@ -127,10 +127,10 @@ class FigureSudokuEnv(gym.Env):
         reward = Reward.CONTINUE.value
 
         if failed:
-            reward = Reward.FORBIDDEN.value
+            reward = Reward.FAILED.value
 
         if solved:
-            reward = Reward.DONE.value
+            reward = Reward.SOLVED.value
             print("SOLVED")
 
         return self.state.flatten(), reward, done, info
