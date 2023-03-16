@@ -70,7 +70,7 @@ class SudokuGenerator:
 
         init_state = np.copy(state.reshape(self.state_size, 2))
         idx = np.random.choice(range(self.state_size), initial_items, replace=False)
-        init_state[np.delete(range(self.state_size), idx, axis=0)] = [-1, -1]
+        init_state[np.delete(range(self.state_size), idx, axis=0)] = [Geometry.EMPTY.value, Color.EMPTY.value]
         init_state = init_state.reshape(self.rows, self.cols, 2)
         #print("final state:")
         #print(state)

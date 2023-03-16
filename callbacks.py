@@ -16,12 +16,13 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
 
-    def __init__(self, check_freq: int, log_dir: str, model_name: str, verbose: int = 1):
+    def __init__(self, check_freq: int, log_dir: str, model_name: str, verbose: int = 1, window_len: int = 1000):
         super(SaveOnBestTrainingRewardCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.log_dir = log_dir
         self.save_path = os.path.join(log_dir, model_name)
         self.best_mean_reward = -np.inf
+        self.window_len = window_len
 
     def _init_callback(self) -> None:
         # Create folder if needed
@@ -35,7 +36,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
             x, y = ts2xy(load_results(self.log_dir), "timesteps")
             if len(x) > 0:
                 # Mean training reward over the last 100 episodes
-                mean_reward = np.mean(y[-100:])
+                mean_reward = np.mean(y[-self.window_len:])
                 if self.verbose >= 1:
                     print(f"Num timesteps: {self.num_timesteps}")
                     print(f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}")

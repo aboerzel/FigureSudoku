@@ -3,7 +3,7 @@ import numpy as np
 import gym
 from enum import Enum
 
-from gym.spaces import Box, Discrete
+from gym.spaces import Box, Discrete, MultiDiscrete
 
 from action_space import SudokoActionSpace
 from shapes import Geometry, Color
@@ -40,6 +40,7 @@ class FigureSudokuEnv(gym.Env):
         color_values = [e.value for e in Color]
         low = min(np.min(geometry_values), np.min(color_values))
         high = max(np.max(geometry_values), np.max(color_values))
+
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
         #self.observation_space = Box(shape=(self.rows, self.cols, 2), low=np.array([np.min(geometry_values), np.min(color_values)]), high=np.array([np.max(geometry_values), np.max(color_values)]), dtype=np.int32)
 
