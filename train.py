@@ -99,10 +99,10 @@ if __name__ == '__main__':
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
 
-    eval_env = make_vec_env(3, config.LEVEL, type='eval')
-    #eval_env = FigureSudokuEnv(level=config.LEVEL, gui=None)
-    #eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
-    #eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
+    #eval_env = make_vec_env(3, config.LEVEL, type='eval')
+    eval_env = FigureSudokuEnv(level=config.LEVEL, gui=None)
+    eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
+    eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
 
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
     eval_callback = EvalCallback(eval_env, best_model_save_path=config.BEST_EVAL_MODEL_PATH, log_path=config.TENSORBOARD_EVAL_LOG, eval_freq=config.EVAL_FREQ, callback_on_new_best=callback_on_best)
