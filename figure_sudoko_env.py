@@ -39,9 +39,9 @@ class FigureSudokuEnv(gym.Env):
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
         self.solved_state = self.state
 
-        #self.action_space = SudokoActionSpace(n=len(self.actions), env=self)
         self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
 
+        #self.action_space = SudokoActionSpace(n=len(self.actions), env=self)
         #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)], dtype=np.uint8)
         #self.action_space = SudokuMultiDiscreteActionSpace([self.rows, self.cols, len(self.geometries), len(self.colors)], dtype=np.uint8)
 
@@ -52,17 +52,6 @@ class FigureSudokuEnv(gym.Env):
         high = max(np.max(geometry_values), np.max(color_values))
 
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
-        #self.observation_space = Box(
-        #    #shape=(self.rows, self.cols, len(Geometry), len(Color)),
-        #    low=np.array([0, 0, low]),
-        #    high=np.array([self.rows-1, self.cols-1, high]),
-        #    dtype=np.int32)
-
-        #self.observation_space = Tuple((
-        #    Box(low=0, high=self.rows-1, shape=(1), dtype=np.uint8),
-        #    Box(low=0, high=self.cols-1, shape=(1), dtype=np.uint8),
-        #    Box(low=np.min(geometry_values), high=np.max(geometry_values), shape=(1), dtype=np.uint8),
-        #    Box(low=np.min(color_values), high=np.max(color_values), shape=(1), dtype=np.uint8)))
 
         self.reward_range = (Reward.FAILED.value, Reward.SOLVED.value)
 
@@ -161,6 +150,7 @@ class FigureSudokuEnv(gym.Env):
             print("SOLVED")
 
         # Overwrite the done signal when
+        self.current_step += 1
         if self.max_steps is not None and self.current_step >= self.max_steps:
             done = True
             info['time_limit_reached'] = True
@@ -192,14 +182,20 @@ class FigureSudokuEnv(gym.Env):
         return True
 
     def denormalize_action(self, normalized_action):
-        min_val = 0
-        max_val = len(self.actions)-1
-        return int(normalized_action * (max_val - min_val) + min_val)
+        # Shift the value from the range of -1 to +1 to the range of 0 to 1.
+        action = (normalized_action + 1.0) / 2.0
+
+        # Scale the value from the range of 0 to 1 to the range of 0 to 255.
+        action *= len(self.actions)-1
+
+        return int(action)
 
     def normalize_action(self, action):
-        min_val = 0
-        max_val = len(self.actions) - 1
-        return (action - min_val) / (max_val - min_val)
+        # Convert the value to a float between 0 and 1.
+        action /= len(self.actions)-1
+
+        # Shift the value from the range of 0 to 1 to the range of -1 to +1.
+        return (action * 2.0) - 1.0
 
     @staticmethod
     def is_field_empty(state, row, col):

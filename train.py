@@ -41,9 +41,9 @@ def make_vec_env(num_envs, level, max_steps, type='train'):
 
 if __name__ == '__main__':
 
-    learning_rate = 1e-8
+    learning_rate = 1e-10
     gamma = 0.95
-    use_sde = False
+    use_sde = True
 
     vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL, config.MAX_TIMESTEPS, type='train')
 
@@ -52,7 +52,8 @@ if __name__ == '__main__':
         model = A2C.load(config.MODEL_PATH, env=vec_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
     else:
         #model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, gamma=gamma, use_rms_prop=True, use_sde=True, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = A2C(MlpPolicy, env=vec_env, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = ARS(ARSPolicy, env=vec_env, learning_rate=0.0001, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
@@ -65,8 +66,7 @@ if __name__ == '__main__':
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME)
 
     eval_env = make_vec_env(1, config.LEVEL, config.MAX_TIMESTEPS, type='eval')
-    #eval_env = FigureSudokuEnv(level=config.LEVEL, gui=None)
-    #eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
+    #eval_env = FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS, gui=None)
     #eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
 
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
