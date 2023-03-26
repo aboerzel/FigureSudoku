@@ -16,11 +16,12 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
 
-    def __init__(self, check_freq: int, log_dir: str, model_name: str, verbose: int = 1):
+    def __init__(self, check_freq: int, log_dir: str, model_name: str, checkpoint_name: str, verbose: int = 1):
         super(SaveOnBestTrainingRewardCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.log_dir = log_dir
-        self.save_path = os.path.join(log_dir, model_name)
+        self.model_save_path = os.path.join(log_dir, model_name)
+        self.checkpoint_save_path = os.path.join(log_dir, checkpoint_name)
         self.best_mean_reward = -np.inf
 
     def _init_callback(self) -> None:
@@ -30,6 +31,8 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
+
+            self.model.save(self.checkpoint_save_path)
 
             # Retrieve training reward
             x, y = ts2xy(load_results(self.log_dir), "timesteps")
@@ -45,7 +48,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                     self.best_mean_reward = mean_reward
                     # Example for saving best model
                     if self.verbose >= 1:
-                        print(f"Saving new best model to {self.save_path}")
-                    self.model.save(self.save_path)
+                        print(f"Saving new best model to {self.model_save_path}")
+                    self.model.save(self.model_save_path)
 
         return True

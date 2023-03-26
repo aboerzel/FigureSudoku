@@ -10,6 +10,7 @@ TENSORBOARD_EVAL_LOG = os.path.join(OUTPUT_DIR, "logs", "eval")
 
 MODEL_NAME = "sudoku.zip"
 BEST_EVAL_MODEL = "sudoku_best.zip"
+CHECKPOINT_NAME = "checkpoint"
 
 MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
 BEST_EVAL_MODEL_PATH = os.path.join(OUTPUT_DIR, BEST_EVAL_MODEL)

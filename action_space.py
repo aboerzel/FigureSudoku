@@ -3,7 +3,7 @@ import random
 from gym.spaces import Discrete, MultiDiscrete
 
 
-class SudokuDiscreteActionSpace(Discrete):
+class SudokoActionSpace(Discrete):
     def __init__(self, n, env):
         super().__init__(n=n)
         self.env = env

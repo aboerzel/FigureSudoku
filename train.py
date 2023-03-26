@@ -19,76 +19,41 @@ from stable_baselines3 import PPO, SAC, DDPG, A2C
 from stable_baselines3.ppo import MlpPolicy
 
 
-class TimeLimitWrapper(gym.Wrapper):
-    """
-    :param env: (gym.Env) Gym environment that will be wrapped
-    :param max_steps: (int) Max number of steps per episode
-    """
-
-    def __init__(self, env, max_steps=100):
-        # Call the parent constructor, so we can access self.env later
-        super(TimeLimitWrapper, self).__init__(env)
-        self.max_steps = max_steps
-        # Counter of steps per episode
-        self.current_step = 0
-
-    def reset(self):
-        """
-        Reset the environment
-        """
-        # Reset the counter
-        self.current_step = 0
-        return self.env.reset()
-
-    def step(self, action):
-        """
-        :param action: ([float] or int) Action taken by the agent
-        :return: (np.ndarray, float, bool, dict) observation, reward, is the episode over?, additional informations
-        """
-        self.current_step += 1
-        obs, reward, done, info = self.env.step(action)
-        # Overwrite the done signal when
-        if self.current_step >= self.max_steps:
-            done = True
-            #reward = Reward.FAILED.value
-            # Update the info dict to signal that the limit was exceeded
-            info['time_limit_reached'] = True
-        return obs, reward, done, info
-
-    def render(self, **kwargs):
-        self.env.render(**kwargs)
-
-
-def make_sudoku_env(env_id, level, type):
-    env = FigureSudokuEnv(level=level, gui=None)
-    if type == 'eval':
-        env = TimeLimitWrapper(env, max_steps=config.MAX_TIMESTEPS)
+def make_sudoku_env(env_id, level, max_steps, type):
+    env = FigureSudokuEnv(level=level, max_steps=max_steps, gui=None)
     check_env(env)
     env = Monitor(env, f'{config.OUTPUT_DIR}/{type}_{env_id}')
     return env
 
 
-def make_env(env_id, level, type):
+def make_env(env_id, level, max_steps, type):
     def _thunk():
-        env = make_sudoku_env(env_id=env_id, level=level, type=type)
+        env = make_sudoku_env(env_id=env_id, level=level, max_steps=max_steps, type=type)
         return env
 
     return _thunk
 
 
-def make_vec_env(num_envs, level, type='train'):
-    envs = SubprocVecEnv([make_env(env_id=i, level=level, type=type) for i in range(num_envs)])
+def make_vec_env(num_envs, level, max_steps, type='train'):
+    envs = SubprocVecEnv([make_env(env_id=i, level=level, max_steps=max_steps, type=type) for i in range(num_envs)])
     return envs
 
 
 if __name__ == '__main__':
-    vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL, type='train')
+
+    learning_rate = 1e-8
+    gamma = 0.95
+    use_sde = False
+
+    vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL, config.MAX_TIMESTEPS, type='train')
 
     if os.path.isfile(config.MODEL_PATH):
-        model = A2C.load(config.MODEL_PATH, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        model.set_env(env=vec_env)
+        custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde}
+        model = A2C.load(config.MODEL_PATH, env=vec_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
     else:
-        model = A2C(MlpPolicy, env=vec_env, learning_rate=1e-5, use_rms_prop=True, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, gamma=gamma, use_rms_prop=True, use_sde=True, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+
         #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = ARS(ARSPolicy, env=vec_env, learning_rate=0.0001, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
@@ -97,12 +62,12 @@ if __name__ == '__main__':
         #model = SAC("MlpPolicy", env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="auto")
         #model = PPO(MlpPolicy, env=vec_env, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
-    save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME)
+    save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME)
 
-    #eval_env = make_vec_env(3, config.LEVEL, type='eval')
-    eval_env = FigureSudokuEnv(level=config.LEVEL, gui=None)
-    eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
-    eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
+    eval_env = make_vec_env(1, config.LEVEL, config.MAX_TIMESTEPS, type='eval')
+    #eval_env = FigureSudokuEnv(level=config.LEVEL, gui=None)
+    #eval_env = TimeLimitWrapper(eval_env, max_steps=config.MAX_TIMESTEPS)
+    #eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
 
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
     eval_callback = EvalCallback(eval_env, best_model_save_path=config.BEST_EVAL_MODEL_PATH, log_path=config.TENSORBOARD_EVAL_LOG, eval_freq=config.EVAL_FREQ, callback_on_new_best=callback_on_best)

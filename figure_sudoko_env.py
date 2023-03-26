@@ -5,7 +5,8 @@ from enum import Enum
 
 from gym.spaces import Box, Discrete, MultiDiscrete, Tuple, MultiBinary
 
-from action_space import SudokuDiscreteActionSpace, SudokuMultiDiscreteActionSpace
+from action_space import SudokoActionSpace
+#from action_space import SudokuDiscreteActionSpace, SudokuMultiDiscreteActionSpace
 from shapes import Geometry, Color
 from sudoku_generator import SudokuGenerator
 
@@ -18,10 +19,16 @@ class Reward(Enum):
 
 class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, level=1, gui=None):
+    def __init__(self, level=1, max_steps=None, gui=None):
         super(FigureSudokuEnv, self).__init__()
         self.level = level
+
+        self.max_steps = max_steps
+        # Counter of steps per episode
+        self.current_step = 0
+
         self.gui = gui
+
         self.geometries = np.array([Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON])
         self.colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
         self.rows = len(self.geometries)
@@ -32,8 +39,8 @@ class FigureSudokuEnv(gym.Env):
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
         self.solved_state = self.state
 
-        self.action_space = SudokuDiscreteActionSpace(n=len(self.actions), env=self)
-        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.int32)
+        #self.action_space = SudokoActionSpace(n=len(self.actions), env=self)
+        self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
 
         #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)], dtype=np.uint8)
         #self.action_space = SudokuMultiDiscreteActionSpace([self.rows, self.cols, len(self.geometries), len(self.colors)], dtype=np.uint8)
@@ -46,14 +53,14 @@ class FigureSudokuEnv(gym.Env):
 
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
         #self.observation_space = Box(
-        #    shape=(self.rows, self.cols, len(Geometry), len(Color)),
-        #    low=np.array([0, 0, np.min(geometry_values), np.min(color_values)]),
-        #    high=np.array([self.rows-1, self.cols-1, np.max(geometry_values), np.max(color_values)]),
+        #    #shape=(self.rows, self.cols, len(Geometry), len(Color)),
+        #    low=np.array([0, 0, low]),
+        #    high=np.array([self.rows-1, self.cols-1, high]),
         #    dtype=np.int32)
 
         #self.observation_space = Tuple((
         #    Box(low=0, high=self.rows-1, shape=(1), dtype=np.uint8),
-        #    Box(low=0, high=self.rows-1, shape=(1), dtype=np.uint8),
+        #    Box(low=0, high=self.cols-1, shape=(1), dtype=np.uint8),
         #    Box(low=np.min(geometry_values), high=np.max(geometry_values), shape=(1), dtype=np.uint8),
         #    Box(low=np.min(color_values), high=np.max(color_values), shape=(1), dtype=np.uint8)))
 
@@ -68,6 +75,9 @@ class FigureSudokuEnv(gym.Env):
         if self.gui is not None:
             self.gui.display_state(self.state)
 
+        # Reset the counter
+        self.current_step = 0
+
         return self.state.flatten()
 
     def reset_with_level(self, level):
@@ -76,6 +86,9 @@ class FigureSudokuEnv(gym.Env):
 
         if self.gui is not None:
             self.gui.display_state(self.state)
+
+        # Reset the counter
+        self.current_step = 0
 
         return self.state.flatten()
 
@@ -117,7 +130,7 @@ class FigureSudokuEnv(gym.Env):
         return possible_actions_ind
 
     def step(self, action):
-        target_action = self.actions[action]
+        target_action = self.actions[self.denormalize_action(action[0])]
 
         # check if the action is valid
         info = {}
@@ -147,6 +160,11 @@ class FigureSudokuEnv(gym.Env):
             reward = Reward.SOLVED.value
             print("SOLVED")
 
+        # Overwrite the done signal when
+        if self.max_steps is not None and self.current_step >= self.max_steps:
+            done = True
+            info['time_limit_reached'] = True
+
         return self.state.flatten(), reward, done, info
 
     def is_game_finished(self):
@@ -173,10 +191,15 @@ class FigureSudokuEnv(gym.Env):
 
         return True
 
-    def rescale_action(self, normalized_action):
-        low = 0
-        high = len(self.actions)-1
-        return int(low + (high - low) * normalized_action)
+    def denormalize_action(self, normalized_action):
+        min_val = 0
+        max_val = len(self.actions)-1
+        return int(normalized_action * (max_val - min_val) + min_val)
+
+    def normalize_action(self, action):
+        min_val = 0
+        max_val = len(self.actions) - 1
+        return (action - min_val) / (max_val - min_val)
 
     @staticmethod
     def is_field_empty(state, row, col):
