@@ -41,20 +41,22 @@ def make_vec_env(num_envs, level):
 
 if __name__ == '__main__':
 
-    learning_rate = 1e-5
-    gamma = 0.95
-    ent_coef = 0.05
-    use_sde = True
+    learning_rate = 3e-4
+    gamma = 0.99
+    ent_coef = 0.01
+    vf_coef = 0.5
+    use_sde = False
 
     vec_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
 
     if os.path.isfile(config.MODEL_PATH):
-        #custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde}
-        custom_objects = {'learning_rate': learning_rate, 'use_sde': use_sde, 'ent_coef': ent_coef}
-        model = A2C.load(config.MODEL_PATH, env=vec_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
+        custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde, 'ent_coef': ent_coef, 'vf_coef': vf_coef}
+
+        #model = A2C.load(config.MODEL_PATH, env=vec_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
+        model = PPO.load(config.MODEL_PATH, env=vec_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
     else:
+        #model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, gamma=gamma, use_rms_prop=True, use_sde=True, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        model = A2C(MlpPolicy, env=vec_env, learning_rate=learning_rate, ent_coef=ent_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = A2C(MlpPolicy, env=vec_env, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = TRPO(MlpPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
@@ -63,7 +65,7 @@ if __name__ == '__main__':
         #model = RecurrentPPO(MlpLstmPolicy, env=vec_env, use_sde=False, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = SAC(MlpPolicy, env=env, verbose=1, batch_size=256, learning_rate=3e-5, tau=0.005, ent_coef='auto_0.9', use_sde=True, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="auto")
-        #model = PPO(MlpPolicy, env=vec_env, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = PPO(MlpPolicy, env=vec_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME)
 
