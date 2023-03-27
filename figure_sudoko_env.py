@@ -186,13 +186,13 @@ class FigureSudokuEnv(gym.Env):
         action = (normalized_action + 1.0) / 2.0
 
         # Scale the value from the range of 0 to 1 to the range of 0 to 255.
-        action *= len(self.actions)-1
+        action *= (len(self.actions)-1)
 
         return int(action)
 
     def normalize_action(self, action):
         # Convert the value to a float between 0 and 1.
-        action /= len(self.actions)-1
+        action /= (len(self.actions)-1)
 
         # Shift the value from the range of 0 to 1 to the range of -1 to +1.
         return (action * 2.0) - 1.0
