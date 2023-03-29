@@ -121,33 +121,35 @@ class FigureSudokuEnv(gym.Env):
     def step(self, action):
         target_action = self.actions[self.denormalize_action(action[0])]
 
-        # check if the action is valid
-        info = {}
-        if not self.is_valid_action(target_action):
-            return self.state.flatten(), Reward.FAILED.value, False, info
-
-        # perform action if it is valid
-        (geometry, color) = target_action[0]
-        (row, col) = target_action[1]
-        self.state[row][col] = [geometry.value, color.value]
-
-        if self.gui is not None:
-            self.gui.display_state(self.state)
-
-        # check game solved or failed
-        solved = FigureSudokuEnv.is_done(self.state)
-        failed = not solved and self.is_game_finished()
-
-        # finish the game when the game is won or lost
-        done = solved or failed
         reward = Reward.CONTINUE.value
+        done = False
+        info = {}
 
-        if failed:
+        # check if the action is valid
+        if self.is_valid_action(target_action):
+            # perform action if it is valid
+            (geometry, color) = target_action[0]
+            (row, col) = target_action[1]
+            self.state[row][col] = [geometry.value, color.value]
+
+            if self.gui is not None:
+                self.gui.display_state(self.state)
+
+            # check game solved or failed
+            solved = FigureSudokuEnv.is_done(self.state)
+            failed = not solved and self.is_game_finished()
+
+            # finish the game when the game is won or lost
+            done = solved or failed
+
+            if failed:
+                reward = Reward.FAILED.value
+
+            if solved:
+                reward = Reward.SOLVED.value
+                print("SOLVED")
+        else:
             reward = Reward.FAILED.value
-
-        if solved:
-            reward = Reward.SOLVED.value
-            print("SOLVED")
 
         # Overwrite the done signal when
         self.current_step += 1
