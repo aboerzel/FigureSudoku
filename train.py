@@ -93,9 +93,7 @@ if __name__ == '__main__':
         #train_env = SubprocVecEnv([lambda: FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS) for i in range(config.NUM_AGENTS)])
         #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
 
-    eval_env = FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS)
-    eval_env = Monitor(eval_env, f'{config.OUTPUT_DIR}/eval')
-    eval_env = DummyVecEnv([lambda: eval_env])
+    eval_env = DummyVecEnv([lambda: Monitor(FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS), f'{config.OUTPUT_DIR}/eval')])
     eval_env = VecNormalize(venv=eval_env, norm_obs=True, norm_reward=False)
 
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
