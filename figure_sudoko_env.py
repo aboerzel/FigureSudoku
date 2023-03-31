@@ -5,8 +5,6 @@ from enum import Enum
 
 from gym.spaces import Box, Discrete, MultiDiscrete, Tuple, MultiBinary
 
-from action_space import SudokoActionSpace
-#from action_space import SudokuDiscreteActionSpace, SudokuMultiDiscreteActionSpace
 from shapes import Geometry, Color
 from sudoku_generator import SudokuGenerator
 
@@ -41,17 +39,13 @@ class FigureSudokuEnv(gym.Env):
 
         self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
 
-        #self.action_space = SudokoActionSpace(n=len(self.actions), env=self)
-        #self.action_space = MultiDiscrete([self.rows, self.cols, len(self.geometries), len(self.colors)], dtype=np.uint8)
-        #self.action_space = SudokuMultiDiscreteActionSpace([self.rows, self.cols, len(self.geometries), len(self.colors)], dtype=np.uint8)
-
         state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
         color_values = [e.value for e in Color]
         low = min(np.min(geometry_values), np.min(color_values))
         high = max(np.max(geometry_values), np.max(color_values))
 
-        self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
+        self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.float32)
 
         self.reward_range = (Reward.FAILED.value, Reward.SOLVED.value)
 
@@ -67,7 +61,7 @@ class FigureSudokuEnv(gym.Env):
         # Reset the counter
         self.current_step = 0
 
-        return self.state.flatten()
+        return self.state.flatten().astype(np.float32)
 
     def reset_with_level(self, level):
         initial_items = (self.rows * self.cols) - level
@@ -79,7 +73,7 @@ class FigureSudokuEnv(gym.Env):
         # Reset the counter
         self.current_step = 0
 
-        return self.state.flatten()
+        return self.state.flatten().astype(np.float32)
 
     def render(self, **kwargs):
         # update gui
@@ -157,7 +151,7 @@ class FigureSudokuEnv(gym.Env):
             done = True
             info['time_limit_reached'] = True
 
-        return self.state.flatten(), reward, done, info
+        return self.state.flatten().astype(np.float32), reward, done, info
 
     def is_game_finished(self):
         possible_actions = self.get_possible_actions()
