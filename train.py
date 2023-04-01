@@ -79,7 +79,7 @@ if __name__ == '__main__':
         #buffer = ReplayBuffer(buffer_size=buffer_size, observation_space=train_env.observation_space, action_space=train_env.action_space, device="cuda")
 
         # Erstelle einen Ornstein-Uhlenbeck-Action-Noise-Prozess
-        action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(train_env.action_space.shape[0]), sigma=0.2 * np.ones(train_env.action_space.shape[0]))
+        action_noise = None  # OrnsteinUhlenbeckActionNoise(mean=np.zeros(train_env.action_space.shape[0]), sigma=0.2 * np.ones(train_env.action_space.shape[0]))
 
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, buffer_size=buffer_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_starts=learning_starts, batch_size=batch_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")

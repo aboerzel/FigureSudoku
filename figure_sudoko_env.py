@@ -11,8 +11,8 @@ from sudoku_generator import SudokuGenerator
 
 class Reward(Enum):
     FAILED = -1.0
-    CONTINUE = 0.0
-    SOLVED = 1.0
+    CONTINUE = 5.0
+    SOLVED = 50.0
 
 
 class FigureSudokuEnv(gym.Env):
@@ -115,6 +115,8 @@ class FigureSudokuEnv(gym.Env):
     def step(self, action):
         target_action = self.actions[self.denormalize_action(action[0])]
 
+        self.current_step += 1
+
         reward = Reward.CONTINUE.value
         done = False
         info = {}
@@ -140,13 +142,20 @@ class FigureSudokuEnv(gym.Env):
                 reward = Reward.FAILED.value
 
             if solved:
-                reward = Reward.SOLVED.value
-                print("SOLVED")
+                time_scale = self.level / self.current_step
+                reward = Reward.SOLVED.value * time_scale
+                print(f"SOLVED - Reward: {reward:.2f}")
+
+            if not failed and not solved:
+                empty_fields = self.get_empty_fields(self.state)
+                diff = self.level - empty_fields
+                continue_scale = 1.0 if diff == 0 else diff / self.level
+                reward = Reward.CONTINUE.value * continue_scale
+
         else:
             reward = Reward.FAILED.value
 
         # Overwrite the done signal when
-        self.current_step += 1
         if self.max_steps is not None and self.current_step >= self.max_steps:
             done = True
             info['time_limit_reached'] = True
@@ -222,3 +231,8 @@ class FigureSudokuEnv(gym.Env):
                 return False
 
         return True
+
+    @staticmethod
+    def get_empty_fields(state):
+        state = state.reshape(state.shape[0] * state.shape[1], 2)
+        return len(np.where(np.logical_or(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))[0])
