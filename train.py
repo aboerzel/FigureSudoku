@@ -42,7 +42,7 @@ def make_vec_env(num_envs, level):
 
 if __name__ == '__main__':
 
-    learning_rate = 3e-4
+    learning_rate = 3e-3
     gamma = 0.99
     target_entropy = 'auto' # 0.95
     ent_coef = 0.02
