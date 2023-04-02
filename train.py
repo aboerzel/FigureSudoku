@@ -42,7 +42,7 @@ def make_vec_env(num_envs, level):
 
 if __name__ == '__main__':
 
-    learning_rate = 3e-3
+    learning_rate = 3e-5
     gamma = 0.99
     target_entropy = 'auto' # 0.95
     ent_coef = 0.02
@@ -72,6 +72,7 @@ if __name__ == '__main__':
 
         #replay_buffer = HerReplayBuffer(env=train_env, buffer_size=20000, n_sampled_goal=4, goal_selection_strategy='future')
         #model = PPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = PPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=0.8, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = RecurrentPPO(MlpLstmPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
@@ -79,12 +80,12 @@ if __name__ == '__main__':
         #buffer = ReplayBuffer(buffer_size=buffer_size, observation_space=train_env.observation_space, action_space=train_env.action_space, device="cuda")
 
         # Erstelle einen Ornstein-Uhlenbeck-Action-Noise-Prozess
-        action_noise = None  # OrnsteinUhlenbeckActionNoise(mean=np.zeros(train_env.action_space.shape[0]), sigma=0.2 * np.ones(train_env.action_space.shape[0]))
+        #action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(train_env.action_space.shape[0]), sigma=0.2 * np.ones(train_env.action_space.shape[0]))
 
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, buffer_size=buffer_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_starts=learning_starts, batch_size=batch_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        #model = SAC(SACPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = SAC(SACPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = DDPG(TD3Policy, env=train_env, train_freq=20, batch_size=512, learning_rate=learning_rate, gamma=gamma, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = DDPG(TD3Policy, env=train_env, verbose=1, learning_rate=learning_rate, buffer_size=buffer_size, learning_starts=learning_starts, batch_size=batch_size, tau=tau, gamma=gamma, action_noise=action_noise, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")

@@ -13,6 +13,7 @@ class Reward(Enum):
     FAILED = -1.0
     CONTINUE = 5.0
     SOLVED = 50.0
+    TIME = 20.0
 
 
 class FigureSudokuEnv(gym.Env):
@@ -38,6 +39,7 @@ class FigureSudokuEnv(gym.Env):
         self.solved_state = self.state
 
         self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
+        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.float32)
 
         state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
@@ -47,7 +49,7 @@ class FigureSudokuEnv(gym.Env):
 
         self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.float32)
 
-        self.reward_range = (Reward.FAILED.value, Reward.SOLVED.value)
+        self.reward_range = (Reward.FAILED.value, Reward.SOLVED.value + Reward.TIME.value)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
 
@@ -114,6 +116,7 @@ class FigureSudokuEnv(gym.Env):
 
     def step(self, action):
         target_action = self.actions[self.denormalize_action(action[0])]
+        #target_action = self.actions[int(action[0])]
 
         self.current_step += 1
 
@@ -142,15 +145,15 @@ class FigureSudokuEnv(gym.Env):
                 reward = Reward.FAILED.value
 
             if solved:
-                time_scale = self.level / self.current_step
-                reward = Reward.SOLVED.value * time_scale
+                time_reward_scale = self.level / self.current_step
+                reward = Reward.SOLVED.value + (Reward.TIME.value * time_reward_scale)
                 print(f"SOLVED - Reward: {reward:.2f}")
 
             if not failed and not solved:
                 empty_fields = self.get_empty_fields(self.state)
                 diff = self.level - empty_fields
-                continue_scale = 1.0 if diff == 0 else diff / self.level
-                reward = Reward.CONTINUE.value * continue_scale
+                continue_reward_scale = 1.0 if diff == 0 else diff / self.level
+                reward = Reward.CONTINUE.value * continue_reward_scale
 
         else:
             reward = Reward.FAILED.value
