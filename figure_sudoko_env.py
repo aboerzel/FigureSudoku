@@ -11,7 +11,7 @@ from sudoku_generator import SudokuGenerator
 
 class Reward(Enum):
     FAILED = -1.0
-    CONTINUE = 5.0
+    CONTINUE = 10.0
     SOLVED = 50.0
     TIME = 20.0
 
@@ -38,8 +38,9 @@ class FigureSudokuEnv(gym.Env):
         self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
         self.solved_state = self.state
 
-        self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
-        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.float32)
+        #self.action_space = Box(shape=(1,), low=-1.0, high=1.0, dtype=np.float32)
+        #self.action_space = Box(shape=(1,), low=0, high=len(self.actions)-1, dtype=np.int32)
+        self.action_space = Discrete(n=len(self.actions)-1)
 
         state_size = int(self.state.shape[0] * self.state.shape[1] * self.state.shape[2])
         geometry_values = [e.value for e in Geometry]
@@ -47,7 +48,7 @@ class FigureSudokuEnv(gym.Env):
         low = min(np.min(geometry_values), np.min(color_values))
         high = max(np.max(geometry_values), np.max(color_values))
 
-        self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.float32)
+        self.observation_space = Box(shape=(state_size,), low=low, high=high, dtype=np.int32)
 
         self.reward_range = (Reward.FAILED.value, Reward.SOLVED.value + Reward.TIME.value)
 
@@ -63,7 +64,7 @@ class FigureSudokuEnv(gym.Env):
         # Reset the counter
         self.current_step = 0
 
-        return self.state.flatten().astype(np.float32)
+        return self.state.flatten() #.astype(np.float32)
 
     def reset_with_level(self, level):
         initial_items = (self.rows * self.cols) - level
@@ -75,7 +76,7 @@ class FigureSudokuEnv(gym.Env):
         # Reset the counter
         self.current_step = 0
 
-        return self.state.flatten().astype(np.float32)
+        return self.state.flatten() #.astype(np.float32)
 
     def render(self, **kwargs):
         # update gui
@@ -115,8 +116,10 @@ class FigureSudokuEnv(gym.Env):
         return possible_actions_ind
 
     def step(self, action):
-        target_action = self.actions[self.denormalize_action(action[0])]
+        #target_action = self.actions[self.denormalize_action(action[0])]
         #target_action = self.actions[int(action[0])]
+        #target_action = self.actions[int(action[0])]
+        target_action = self.actions[action]
 
         self.current_step += 1
 
@@ -145,15 +148,13 @@ class FigureSudokuEnv(gym.Env):
                 reward = Reward.FAILED.value
 
             if solved:
-                time_reward_scale = self.level / self.current_step
-                reward = Reward.SOLVED.value + (Reward.TIME.value * time_reward_scale)
+                time_reward = Reward.TIME.value * (self.level / self.current_step)
+                reward = Reward.SOLVED.value + time_reward
                 print(f"SOLVED - Reward: {reward:.2f}")
 
             if not failed and not solved:
-                empty_fields = self.get_empty_fields(self.state)
-                diff = self.level - empty_fields
-                continue_reward_scale = 1.0 if diff == 0 else diff / self.level
-                reward = Reward.CONTINUE.value * continue_reward_scale
+                solve_reward = (self.level - FigureSudokuEnv.get_empty_fields(self.state)) / self.level
+                reward = Reward.CONTINUE.value * solve_reward
 
         else:
             reward = Reward.FAILED.value
@@ -163,7 +164,7 @@ class FigureSudokuEnv(gym.Env):
             done = True
             info['time_limit_reached'] = True
 
-        return self.state.flatten().astype(np.float32), reward, done, info
+        return self.state.flatten(), reward, done, info
 
     def is_game_finished(self):
         possible_actions = self.get_possible_actions()
@@ -215,9 +216,13 @@ class FigureSudokuEnv(gym.Env):
         return len(np.where(np.logical_and(state[:, 0] == geometry.value, state[:, 1] == color.value))[0]) == 0
 
     @staticmethod
-    def is_done(state):
+    def get_empty_fields(state):
         state = state.reshape(state.shape[0] * state.shape[1], 2)
-        return len(np.where(np.logical_or(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))[0]) == 0
+        return len(np.where(np.logical_or(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))[0])
+
+    @staticmethod
+    def is_done(state):
+        return FigureSudokuEnv.get_empty_fields(state) == 0
 
     @staticmethod
     def can_move(state, row, col, geometry, color):
@@ -234,8 +239,3 @@ class FigureSudokuEnv(gym.Env):
                 return False
 
         return True
-
-    @staticmethod
-    def get_empty_fields(state):
-        state = state.reshape(state.shape[0] * state.shape[1], 2)
-        return len(np.where(np.logical_or(state[:, 0] == Geometry.EMPTY.value, state[:, 1] == Color.EMPTY.value))[0])

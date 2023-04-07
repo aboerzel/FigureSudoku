@@ -45,9 +45,9 @@ if __name__ == '__main__':
     learning_rate = 3e-4
     gamma = 0.99
     target_entropy = 'auto' # 0.95
-    ent_coef = 0.03
+    ent_coef = 0.1
     vf_coef = 0.5
-    use_sde = True
+    use_sde = False
     buffer_size = int(1e6)
     batch_size = 256
     tau = 0.005
@@ -56,15 +56,16 @@ if __name__ == '__main__':
     timesteps = 256 * episodes
 
     train_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
-    train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
+    #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
 
     if os.path.isfile(config.MODEL_PATH):
         custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde, 'ent_coef': ent_coef, 'vf_coef': vf_coef}
 
-        #model = A2C.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
+        #model = SAC.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
+        model = A2C.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
         #model = PPO.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
     else:
-        #model = A2C(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = A2C(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = TRPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
 
@@ -84,7 +85,7 @@ if __name__ == '__main__':
 
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, buffer_size=buffer_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_starts=learning_starts, batch_size=batch_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        model = SAC(SACPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        #model = SAC(SACPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
         #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = DDPG(TD3Policy, env=train_env, train_freq=20, batch_size=512, learning_rate=learning_rate, gamma=gamma, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
@@ -95,7 +96,7 @@ if __name__ == '__main__':
         #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
 
     eval_env = DummyVecEnv([lambda: Monitor(FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS), f'{config.OUTPUT_DIR}/eval')])
-    eval_env = VecNormalize(venv=eval_env, norm_obs=True, norm_reward=False)
+    #eval_env = VecNormalize(venv=eval_env, norm_obs=True, norm_reward=False)
 
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
     eval_callback = EvalCallback(eval_env, best_model_save_path=config.BEST_EVAL_MODEL_PATH, log_path=config.TENSORBOARD_EVAL_LOG, eval_freq=config.EVAL_FREQ, callback_on_new_best=callback_on_best)
