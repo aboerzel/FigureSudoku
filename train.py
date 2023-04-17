@@ -17,11 +17,11 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.sac.policies import SACPolicy
 from stable_baselines3.td3.policies import TD3Policy
 from stable_baselines3.ppo import MlpPolicy
-from stable_baselines3 import PPO, SAC, DDPG, A2C, HER, HerReplayBuffer
+from stable_baselines3 import PPO, SAC, DDPG, A2C, HER, HerReplayBuffer, DQN
 
 
 def make_sudoku_env(env_id, level):
-    env = FigureSudokuEnv(level=level, max_steps=config.MAX_TIMESTEPS)
+    env = FigureSudokuEnv(env_id=env_id, level=level, max_steps=config.MAX_TIMESTEPS)
     check_env(env)
     env = Monitor(env, f'{config.OUTPUT_DIR}/train_{env_id}')
     return env
@@ -42,30 +42,32 @@ def make_vec_env(num_envs, level):
 
 if __name__ == '__main__':
 
-    learning_rate = 3e-4
-    gamma = 0.99
+    learning_rate = 1e-3
+    gamma = 0.95
     target_entropy = 'auto' # 0.95
-    ent_coef = 0.1
-    vf_coef = 0.5
+    ent_coef = 0.05
+    vf_coef = 0.05
     use_sde = False
     buffer_size = int(1e6)
     batch_size = 256
     tau = 0.005
+    use_rms_prop = False
     learning_starts = 1000
-    episodes = 500000
-    timesteps = 256 * episodes
+    episodes = 5000000
+    timesteps = config.MAX_TIMESTEPS * episodes
 
     train_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
     #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
 
     if os.path.isfile(config.MODEL_PATH):
-        custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde, 'ent_coef': ent_coef, 'vf_coef': vf_coef}
+        #custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde, 'ent_coef': ent_coef, 'vf_coef': vf_coef}
+        custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_rms_prop': use_rms_prop, 'ent_coef': ent_coef }
 
         #model = SAC.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
         model = A2C.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
         #model = PPO.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
     else:
-        model = A2C(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = A2C(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, use_rms_prop=use_rms_prop, ent_coef=ent_coef, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
         #model = TRPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
 

@@ -11,15 +11,16 @@ from sudoku_generator import SudokuGenerator
 
 class Reward(Enum):
     FAILED = -1.0
-    CONTINUE = 10.0
-    SOLVED = 50.0
-    TIME = 20.0
+    CONTINUE = 5.0
+    SOLVED = 5.0
+    TIME = 2.0
 
 
 class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, level=1, max_steps=None, gui=None):
+    def __init__(self, env_id=0, level=1, max_steps=None, gui=None):
         super(FigureSudokuEnv, self).__init__()
+        self.env_id = env_id
         self.level = level
 
         self.max_steps = max_steps
@@ -150,10 +151,10 @@ class FigureSudokuEnv(gym.Env):
             if solved:
                 time_reward = Reward.TIME.value * (self.level / self.current_step)
                 reward = Reward.SOLVED.value + time_reward
-                print(f"SOLVED - Reward: {reward:.2f}")
+                print(f"{self.env_id:02d}: SOLVED - Reward: {reward:.2f}")
 
             if not failed and not solved:
-                solve_reward = (self.level - FigureSudokuEnv.get_empty_fields(self.state)) / self.level
+                solve_reward = ((self.level - FigureSudokuEnv.get_empty_fields(self.state)) / self.level) ** 2
                 reward = Reward.CONTINUE.value * solve_reward
 
         else:
