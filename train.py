@@ -44,17 +44,17 @@ if __name__ == '__main__':
 
     learning_rate = 1e-3
     gamma = 0.95
-    target_entropy = 'auto' # 0.95
+    #target_entropy = 'auto' # 0.95
     ent_coef = 0.05
-    vf_coef = 0.05
-    use_sde = False
-    buffer_size = int(1e6)
-    batch_size = 256
-    tau = 0.005
+    #vf_coef = 0.05
+    #use_sde = False
+    #buffer_size = int(1e6)
+    #batch_size = 256
+    #tau = 0.005
     use_rms_prop = False
-    learning_starts = 1000
-    episodes = 5000000
-    timesteps = config.MAX_TIMESTEPS * episodes
+    #learning_starts = 1000
+    #episodes = 5000000
+    timesteps = 500000000
 
     train_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
     #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
