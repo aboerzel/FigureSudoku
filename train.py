@@ -71,7 +71,7 @@ if __name__ == '__main__':
         model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=config.CHECK_FREQ, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME)
-    curriculum_callback = CurriculumCallback(check_freq=config.CHECK_FREQ, reward_threshold=0.95, log_dir=config.OUTPUT_DIR)
+    curriculum_callback = CurriculumCallback(check_freq=config.CHECK_FREQ, reward_threshold=0.98, log_dir=config.OUTPUT_DIR)
 
     callback = CallbackList([save_best_model_callback, curriculum_callback])
 

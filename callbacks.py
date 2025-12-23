@@ -24,17 +24,22 @@ class CurriculumCallback(BaseCallback):
             # Hole Ergebnisse der letzten Episoden
             try:
                 x, y = ts2xy(load_results(self.log_dir), "timesteps")
-                if len(y) > 0:
-                    mean_reward = np.mean(y[-20:]) # Durchschnitt der letzten 20 Episoden
+                if len(y) >= 100: # Betrachte mindestens die letzten 100 Episoden
+                    last_rewards = y[-100:]
+                    # Eine Episode gilt als erfolgreich (DONE), wenn der Bonus von 1.0 erreicht wurde.
+                    # Da jeder valide Zug 0.1 gibt, ist der Reward bei Erfolg immer >= 1.0.
+                    success_rate = np.mean([1 if r >= 1.0 else 0 for r in last_rewards])
                     
-                    if mean_reward > self.reward_threshold and self.current_level < config.MAX_LEVEL:
+                    if success_rate > self.reward_threshold and self.current_level < config.MAX_LEVEL:
                         self.current_level += 1
                         if self.verbose > 0:
-                            print(f"Increasing difficulty level to: {self.current_level}", flush=True)
+                            print(f"Success rate {success_rate:.2f} > {self.reward_threshold}. Increasing difficulty level to: {self.current_level}", flush=True)
                         
                         # Level in allen Umgebungen aktualisieren
                         # Wir nutzen env_method um die Methode in den Subprozessen aufzurufen
                         self.training_env.env_method("reset_with_level", self.current_level)
+                elif len(y) > 0 and self.verbose > 1:
+                    print(f"Waiting for more episodes to evaluate curriculum (current: {len(y)}/100)", flush=True)
             except Exception as e:
                 if self.verbose > 0:
                     print(f"Curriculum update failed: {e}", flush=True)
