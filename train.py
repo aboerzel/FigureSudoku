@@ -1,112 +1,80 @@
 import os
-import numpy as np
+import torch as th
+
+from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
+from sb3_contrib import MaskablePPO
 import config
 
-from callbacks import SaveOnBestTrainingRewardCallback
-from figure_sudoko_env import FigureSudokuEnv, Reward
+from callbacks import SaveOnBestTrainingRewardCallback, CurriculumCallback
+from figure_sudoko_env import FigureSudokuEnv
 
-from sb3_contrib import RecurrentPPO, TRPO, ARS
-from sb3_contrib.ars.policies import ARSPolicy
-from sb3_contrib.ppo_recurrent import MlpLstmPolicy
-from stable_baselines3.common.buffers import ReplayBuffer
-from stable_baselines3.common.callbacks import EvalCallback, CallbackList, StopTrainingOnRewardThreshold
+from stable_baselines3.common.callbacks import CallbackList
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.noise import OrnsteinUhlenbeckActionNoise
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecNormalize, DummyVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.sac.policies import SACPolicy
-from stable_baselines3.td3.policies import TD3Policy
-from stable_baselines3.ppo import MlpPolicy
-from stable_baselines3 import PPO, SAC, DDPG, A2C, HER, HerReplayBuffer, DQN
 
 
-def make_sudoku_env(env_id, level):
-    env = FigureSudokuEnv(env_id=env_id, level=level, max_steps=config.MAX_TIMESTEPS)
+def make_sudoku_env(env_id, level, render_gui=False):
+    env = FigureSudokuEnv(env_id=env_id, level=level, max_steps=config.MAX_TIMESTEPS, render_gui=render_gui)
     check_env(env)
     env = Monitor(env, f'{config.OUTPUT_DIR}/train_{env_id}')
     return env
 
 
-def make_env(env_id, level):
+def make_env(env_id, level, render_gui=False):
     def _thunk():
-        env = make_sudoku_env(env_id=env_id, level=level)
+        env = make_sudoku_env(env_id=env_id, level=level, render_gui=render_gui)
         return env
 
     return _thunk
 
 
-def make_vec_env(num_envs, level):
-    envs = SubprocVecEnv([make_env(env_id=i, level=level) for i in range(num_envs)], start_method='spawn')
+def make_vec_env(num_envs, level, render_gui=False):
+    if render_gui:
+        from stable_baselines3.common.vec_env import DummyVecEnv
+        envs = DummyVecEnv([make_env(env_id=i, level=level, render_gui=render_gui) for i in range(num_envs)])
+    else:
+        envs = SubprocVecEnv([make_env(env_id=i, level=level, render_gui=render_gui) for i in range(num_envs)], start_method='spawn')
     return envs
 
 
 if __name__ == '__main__':
 
-    learning_rate = 1e-3
-    gamma = 0.95
-    #target_entropy = 'auto' # 0.95
-    ent_coef = 0.05
-    #vf_coef = 0.05
-    #use_sde = False
-    #buffer_size = int(1e6)
-    #batch_size = 256
-    #tau = 0.005
-    use_rms_prop = False
-    #learning_starts = 1000
-    #episodes = 5000000
-    timesteps = 500000000
+    # PPO Hyperparameters
+    learning_rate = 3e-4
+    n_steps = 512 # Reduced from 2048 to update more frequently (Total steps per update: n_steps * num_envs)
+    batch_size = 256 # Increased from 64 for better stability with larger total update steps
+    ent_coef = 0.01
+    vf_coef = 0.5
+    gamma = 0.99
 
-    train_env = make_vec_env(config.NUM_AGENTS, config.LEVEL)
-    #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
+    policy_kwargs = dict(
+        activation_fn=th.nn.ReLU,
+        net_arch=dict(pi=[256, 256], vf=[256, 256])
+    )
+
+    train_env = make_vec_env(config.NUM_AGENTS, config.LEVEL, render_gui=config.RENDER_GUI)
+    train_env = VecNormalize(venv=train_env, norm_obs=False, norm_reward=True) # One-hot obs don't need normalization
 
     if os.path.isfile(config.MODEL_PATH):
-        #custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_sde': use_sde, 'ent_coef': ent_coef, 'vf_coef': vf_coef}
-        custom_objects = {'learning_rate': learning_rate, 'gamma': gamma, 'use_rms_prop': use_rms_prop, 'ent_coef': ent_coef }
-
-        #model = SAC.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
-        model = A2C.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
-        #model = PPO.load(config.MODEL_PATH, env=train_env, device="cuda", custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG)
+        custom_objects = {
+            'learning_rate': learning_rate,
+            'n_steps': n_steps,
+            'batch_size': batch_size,
+            'gamma': gamma,
+            'ent_coef': ent_coef,
+            'vf_coef': vf_coef,
+            'policy_kwargs': policy_kwargs
+        }
+        model = MaskablePPO.load(config.MODEL_PATH, env=train_env, custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
     else:
-        model = A2C(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, use_rms_prop=use_rms_prop, ent_coef=ent_coef, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-
-        #model = TRPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
-
-        #model = ARS(ARSPolicy, env=train_env, learning_rate=0.0001, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-
-        #replay_buffer = HerReplayBuffer(env=train_env, buffer_size=20000, n_sampled_goal=4, goal_selection_strategy='future')
-        #model = PPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        #model = PPO(MlpPolicy, env=train_env, learning_rate=learning_rate, gamma=0.8, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-
-        #model = RecurrentPPO(MlpLstmPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-
-        # Erstelle einen Experience Replay Buffer
-        #buffer = ReplayBuffer(buffer_size=buffer_size, observation_space=train_env.observation_space, action_space=train_env.action_space, device="cuda")
-
-        # Erstelle einen Ornstein-Uhlenbeck-Action-Noise-Prozess
-        #action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(train_env.action_space.shape[0]), sigma=0.2 * np.ones(train_env.action_space.shape[0]))
-
-        #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, buffer_size=buffer_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, policy_kwargs=dict(net_arch=[256, 256, 256]), device="cuda")
-        #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_starts=learning_starts, batch_size=batch_size, learning_rate=learning_rate, gamma=gamma, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        #model = SAC(SACPolicy, env=train_env, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, target_entropy=target_entropy, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        #model = SAC(SACPolicy, env=train_env, action_noise=action_noise, learning_rate=learning_rate, use_sde=use_sde, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-
-        #model = DDPG(TD3Policy, env=train_env, train_freq=20, batch_size=512, learning_rate=learning_rate, gamma=gamma, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-        #model = DDPG(TD3Policy, env=train_env, verbose=1, learning_rate=learning_rate, buffer_size=buffer_size, learning_starts=learning_starts, batch_size=batch_size, tau=tau, gamma=gamma, action_noise=action_noise, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
-
-        #train_env = SubprocVecEnv([lambda: make_sudoku_env(env_id=i, level=config.LEVEL) for i in range(config.NUM_AGENTS)], start_method='spawn')
-        #train_env = SubprocVecEnv([lambda: FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS) for i in range(config.NUM_AGENTS)])
-        #train_env = VecNormalize(venv=train_env, norm_obs=True, norm_reward=False)
-
-    eval_env = DummyVecEnv([lambda: Monitor(FigureSudokuEnv(level=config.LEVEL, max_steps=config.MAX_TIMESTEPS), f'{config.OUTPUT_DIR}/eval')])
-    #eval_env = VecNormalize(venv=eval_env, norm_obs=True, norm_reward=False)
-
-    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=Reward.SOLVED.value, verbose=1)
-    eval_callback = EvalCallback(eval_env, best_model_save_path=config.BEST_EVAL_MODEL_PATH, log_path=config.TENSORBOARD_EVAL_LOG, eval_freq=config.EVAL_FREQ, callback_on_new_best=callback_on_best)
+        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, learning_rate=learning_rate, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=config.CHECK_FREQ, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME)
+    curriculum_callback = CurriculumCallback(check_freq=config.CHECK_FREQ, reward_threshold=0.95, log_dir=config.OUTPUT_DIR)
 
-    callback = CallbackList([save_best_model_callback, eval_callback])
+    callback = CallbackList([save_best_model_callback, curriculum_callback])
 
-    model.learn(total_timesteps=timesteps, callback=callback, progress_bar=True)
+    model.learn(total_timesteps=config.TOTAL_TIMESTEPS, callback=callback, progress_bar=False)
 
     print('Training finished!')

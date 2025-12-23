@@ -1,8 +1,44 @@
 import os
 
 import numpy as np
+
+import config
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.results_plotter import ts2xy, load_results
+
+
+class CurriculumCallback(BaseCallback):
+    """
+    Callback for increasing the difficulty level of the environment
+    based on the mean reward.
+    """
+    def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, verbose: int = 1):
+        super(CurriculumCallback, self).__init__(verbose)
+        self.check_freq = check_freq
+        self.reward_threshold = reward_threshold
+        self.log_dir = log_dir
+        self.current_level = config.LEVEL
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.check_freq == 0:
+            # Hole Ergebnisse der letzten Episoden
+            try:
+                x, y = ts2xy(load_results(self.log_dir), "timesteps")
+                if len(y) > 0:
+                    mean_reward = np.mean(y[-20:]) # Durchschnitt der letzten 20 Episoden
+                    
+                    if mean_reward > self.reward_threshold and self.current_level < config.MAX_LEVEL:
+                        self.current_level += 1
+                        if self.verbose > 0:
+                            print(f"Increasing difficulty level to: {self.current_level}", flush=True)
+                        
+                        # Level in allen Umgebungen aktualisieren
+                        # Wir nutzen env_method um die Methode in den Subprozessen aufzurufen
+                        self.training_env.env_method("reset_with_level", self.current_level)
+            except Exception as e:
+                if self.verbose > 0:
+                    print(f"Curriculum update failed: {e}", flush=True)
+        return True
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
@@ -32,7 +68,10 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
 
-            self.model.save(self.checkpoint_save_path)
+            try:
+                self.model.save(self.checkpoint_save_path)
+            except:
+                print(f'Saving model checkpoint {self.checkpoint_save_path} failed.')
 
             # Retrieve training reward
             x, y = ts2xy(load_results(self.log_dir), "timesteps")
@@ -40,15 +79,15 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                 # Mean training reward over the last 100 episodes
                 mean_reward = np.mean(y[-100:])
                 if self.verbose >= 1:
-                    print(f"Num timesteps: {self.num_timesteps}")
-                    print(f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}")
+                    print(f"Num timesteps: {self.num_timesteps}", flush=True)
+                    print(f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}", flush=True)
 
                 # New best model, you could save the agent here
                 if mean_reward > self.best_mean_reward:
                     self.best_mean_reward = mean_reward
                     # Example for saving best model
                     if self.verbose >= 1:
-                        print(f"Saving new best model to {self.model_save_path}")
+                        print(f"Saving new best model to {self.model_save_path}", flush=True)
                     self.model.save(self.model_save_path)
 
         return True

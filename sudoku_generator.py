@@ -7,80 +7,96 @@ from shapes import Geometry, Color
 
 class SudokuGenerator:
     def __init__(self, geometries, colors):
-        self.geometries = geometries
-        self.colors = colors
+        # Konvertiere Enums/Objekte zu Integers für konsistente Vergleiche
+        self.geometries = [int(g) for g in geometries]
+        self.colors = [int(c) for c in colors]
         self.rows = len(self.geometries)
         self.cols = len(self.colors)
         self.state_size = self.rows * self.cols
-
-        self.shapes = list(itertools.product(geometries, colors))
+        # Alle 16 möglichen Kombinationen aus Geometrie und Farbe
+        self.all_shapes = list(itertools.product(self.geometries, self.colors))
 
     def generate(self, initial_items=4):
-        solved = False
-        state = []
-
-        while not solved:
-
-            state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
-            possibilities = [[self.shapes for i in range(self.cols)] for j in range(self.rows)]
-
-            # random select first cell, geometry and color
-            row = random.randint(0, self.rows - 1)
-            col = random.randint(0, self.rows - 1)
-            geometry = random.choice(self.geometries)
-            color = random.choice(self.colors)
-
-            while True:
-                state[row][col] = np.array([geometry.value, color.value])
-                possibilities[row][col] = []
-
-                for r in range(self.rows):
-                    for c in range(self.cols):
-                        possibilities[r][c] = [item for item in possibilities[r][c] if not (item[0] == geometry and item[1] == color)]
-
-                for i in range(self.cols):
-                    possibilities[row][i] = [item for item in possibilities[row][i] if item[0] != geometry and item[1] != color]
-
-                for i in range(self.rows):
-                    possibilities[i][col] = [item for item in possibilities[i][col] if item[0] != geometry and item[1] != color]
-
-                min_length = 999
-                for r in range(self.rows):
-                    for c in range(self.cols):
-                        length = len(possibilities[r][c])
-                        if 0 < length <= min_length:
-                            min_length = length
-
-                cells = []
-                for r in range(self.rows):
-                    for c in range(self.cols):
-                        if len(possibilities[r][c]) == min_length:
-                            cells.append((r, c))
-
-                if len(cells) < 1:
-                    break
-
-                (row, col) = random.choice(cells)
-                possible_shapes = possibilities[row][col]
-                (geometry, color) = random.choice(possible_shapes)
-                #print(geometry, color)
-
-            solved = np.all(state.reshape(self.state_size, 2)[:, 0] != Geometry.EMPTY.value) and np.all(state.reshape(self.state_size, 2)[:, 1] != Color.EMPTY.value)
-            #print(f'solved: {solved}')
-
-        init_state = np.copy(state.reshape(self.state_size, 2))
-        idx = np.random.choice(range(self.state_size), initial_items, replace=False)
-        init_state[np.delete(range(self.state_size), idx, axis=0)] = [Geometry.EMPTY.value, Color.EMPTY.value]
+        """
+        Generiert ein gültiges, gelöstes Figure-Sudoku und entfernt dann 
+        Elemente, um den Startzustand für den Agenten zu erstellen.
+        """
+        state = np.full((self.rows, self.cols, 2), Geometry.EMPTY.value, dtype=int)
+        available_shapes = set(self.all_shapes)
+        
+        # Versuche das Gitter vollständig zu füllen (Backtracking + MRV)
+        if not self._solve(state, available_shapes):
+            # Fallback (sollte bei 4x4 theoretisch nie nötig sein)
+            return self.generate(initial_items)
+            
+        solved_state = state.copy()
+        
+        # Erzeuge den initialen Zustand durch Entfernen von Elementen
+        init_state = solved_state.copy().reshape(-1, 2)
+        
+        # Bestimme, wie viele Elemente übrig bleiben sollen
+        num_to_keep = max(0, min(initial_items, self.state_size))
+        keep_indices = np.random.choice(range(self.state_size), num_to_keep, replace=False)
+        
+        # Maske für die zu leerenden Felder
+        mask = np.ones(self.state_size, dtype=bool)
+        mask[keep_indices] = False
+        
+        # Felder auf EMPTY setzen
+        init_state[mask] = [Geometry.EMPTY.value, Color.EMPTY.value]
         init_state = init_state.reshape(self.rows, self.cols, 2)
-        #print("final state:")
-        #print(state)
-        #print()
-        #print("init state:")
-        #print(init_state)
+        
+        return solved_state, init_state
 
-        return state, init_state
+    def _solve(self, state, available_shapes):
+        """
+        Backtracking-Algorithmus mit Minimum Remaining Values (MRV) Heuristik.
+        """
+        # Finde alle leeren Felder und berechne deren Möglichkeiten
+        empty_cells = []
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if state[r, c, 0] == Geometry.EMPTY.value:
+                    possibilities = [
+                        s for s in available_shapes 
+                        if self._is_safe(state, r, c, s[0], s[1])
+                    ]
+                    empty_cells.append(((r, c), possibilities))
+        
+        # Wenn kein leeres Feld mehr da ist, haben wir eine Lösung
+        if not empty_cells:
+            return True
+            
+        # MRV: Wähle das Feld mit den wenigsten Möglichkeiten (beschleunigt die Suche)
+        empty_cells.sort(key=lambda x: len(x[1]))
+        (r, c), possibilities = empty_cells[0]
+        
+        # Wenn ein Feld keine Möglichkeiten hat, ist dieser Pfad eine Sackgasse
+        if not possibilities:
+            return False
+            
+        # Probiere die Möglichkeiten in zufälliger Reihenfolge
+        random.shuffle(possibilities)
+        for g, col in possibilities:
+            state[r, c] = [g, col]
+            available_shapes.remove((g, col))
+            
+            if self._solve(state, available_shapes):
+                return True
+                
+            # Backtrack: Zustand zurücksetzen
+            available_shapes.add((g, col))
+            state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
+            
+        return False
 
-
-#env = FigureSudokuEnv()
-#generator = SudokuGenerator(env.geometries, env.colors)
-#print(generator.generate(initial_items=4))
+    def _is_safe(self, state, r, c, g, col):
+        """Prüft, ob das Platzieren einer Figur gegen Sudoku-Regeln verstößt."""
+        # Einfache Schleifen sind bei 4x4 oft schneller als NumPy
+        for i in range(self.cols):
+            if state[r, i, 0] == g or state[r, i, 1] == col:
+                return False
+        for i in range(self.rows):
+            if state[i, c, 0] == g or state[i, c, 1] == col:
+                return False
+        return True

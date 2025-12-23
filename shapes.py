@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class Geometry(Enum):
+class Geometry(IntEnum):
     EMPTY = 0
     CIRCLE = 1
     QUADRAT = 2
@@ -9,7 +9,7 @@ class Geometry(Enum):
     HEXAGON = 4
 
 
-class Color(Enum):
+class Color(IntEnum):
     EMPTY = 0
     RED = 1
     GREEN = 2
