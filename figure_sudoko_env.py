@@ -42,14 +42,14 @@ class FigureSudokuEnv(gym.Env):
 
         self.action_space = Discrete(n=len(self.actions))
 
-        # Observation Space: (rows, cols, geometry_one_hot + color_one_hot)
-        # 5 Geometries (incl. EMPTY) + 5 Colors (incl. EMPTY) = 10 channels
-        self.observation_space = Box(low=0, high=1, shape=(self.rows, self.cols, 10), dtype=np.float32)
+        # Observation Space: Flattened one-hot encoding
+        # 4x4 cells * (5 Geometries + 5 Colors) = 160 elements
+        self.observation_space = Box(low=0, high=1, shape=(self.rows * self.cols * 10,), dtype=np.float32)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
 
     def _get_obs(self):
-        # Convert state (4, 4, 2) to one-hot encoding (4, 4, 10)
+        # Convert state (4, 4, 2) to one-hot encoding (4, 4, 10) then flatten to (160,)
         obs = np.zeros((self.rows, self.cols, 10), dtype=np.float32)
         for r in range(self.rows):
             for c in range(self.cols):
@@ -57,7 +57,7 @@ class FigureSudokuEnv(gym.Env):
                 c_val = int(self.state[r, c, 1])
                 obs[r, c, g_val] = 1.0  # Geometry one-hot (0-4)
                 obs[r, c, 5 + c_val] = 1.0  # Color one-hot (5-9)
-        return obs
+        return obs.flatten()
 
     def reset(self):
         self.current_step = 0
@@ -150,9 +150,9 @@ class FigureSudokuEnv(gym.Env):
         info["action_mask"] = self.action_masks()
 
         if done:
-            print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d}: Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f} - DONE", flush=True)
+            print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f} - DONE", flush=True)
         elif episode_over:
-            print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d}: Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f}", flush=True)
+            print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f}", flush=True)
             if self.max_steps is not None and self.current_step >= self.max_steps:
                 info['time_limit_reached'] = True
 
