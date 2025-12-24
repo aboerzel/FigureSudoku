@@ -10,36 +10,42 @@ from stable_baselines3.common.results_plotter import ts2xy, load_results
 class CurriculumCallback(BaseCallback):
     """
     Callback for increasing the difficulty level of the environment
-    based on the mean reward.
+    based on the success rate.
     """
     def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, verbose: int = 1):
         super(CurriculumCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.reward_threshold = reward_threshold
         self.log_dir = log_dir
-        self.current_level = config.LEVEL
+        self.current_level = config.START_LEVEL
+        self.episodes_at_start_of_level = 0
 
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
             # Hole Ergebnisse der letzten Episoden
             try:
                 x, y = ts2xy(load_results(self.log_dir), "timesteps")
-                if len(y) >= 100: # Betrachte mindestens die letzten 100 Episoden
+                num_episodes = len(y)
+                episodes_at_current_level = num_episodes - self.episodes_at_start_of_level
+                
+                if episodes_at_current_level >= 100: # Mindestens 100 Episoden auf dem aktuellen Level
                     last_rewards = y[-100:]
-                    # Eine Episode gilt als erfolgreich (DONE), wenn der Bonus von 1.0 erreicht wurde.
-                    # Da jeder valide Zug 0.1 gibt, ist der Reward bei Erfolg immer >= 1.0.
-                    success_rate = np.mean([1 if r >= 1.0 else 0 for r in last_rewards])
+                    # Eine Episode gilt als erfolgreich (DONE), wenn der Abschluss-Bonus von 2.0 erreicht wurde.
+                    success_rate = np.mean([1 if r >= 2.0 else 0 for r in last_rewards])
                     
+                    if self.verbose > 0:
+                        print(f"Curriculum Check: Level {self.current_level} - Success Rate: {success_rate:.2f} (Window: 100, Episodes at Level: {episodes_at_current_level})", flush=True)
+
                     if success_rate > self.reward_threshold and self.current_level < config.MAX_LEVEL:
                         self.current_level += 1
+                        self.episodes_at_start_of_level = num_episodes
                         if self.verbose > 0:
                             print(f"Success rate {success_rate:.2f} > {self.reward_threshold}. Increasing difficulty level to: {self.current_level}", flush=True)
                         
                         # Level in allen Umgebungen aktualisieren
-                        # Wir nutzen env_method um die Methode in den Subprozessen aufzurufen
                         self.training_env.env_method("reset_with_level", self.current_level)
-                elif len(y) > 0 and self.verbose > 1:
-                    print(f"Waiting for more episodes to evaluate curriculum (current: {len(y)}/100)", flush=True)
+                elif num_episodes > 0 and self.verbose > 1:
+                    print(f"Waiting for more episodes at level {self.current_level} (current: {episodes_at_current_level}/100)", flush=True)
             except Exception as e:
                 if self.verbose > 0:
                     print(f"Curriculum update failed: {e}", flush=True)

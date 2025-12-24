@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 import gym
 
-from gym.spaces import Box, Discrete, MultiDiscrete, Tuple, MultiBinary
+from gym.spaces import Box, Discrete
 
 from shapes import Geometry, Color
 from sudoku_generator import SudokuGenerator
@@ -117,21 +117,23 @@ class FigureSudokuEnv(gym.Env):
         # check if the action is valid
         if self.is_valid_action(target_action):
             self.valids += 1
-
+            
             # perform action if it is valid
             self.perform_action(target_action)
 
-            # reward for a valid move
-            reward = 0.1
+            # Reward for a valid move
+            # Base reward of 0.1 to encourage any valid move.
+            # Plus a progress bonus: 1.0 divided by total cells (16), so each field is worth 0.0625.
+            reward = 0.1 + (1.0 / (self.rows * self.cols)) 
 
             # check game solved
             done = self.is_done(self.state)
             if done:
-                reward = 1.0
+                reward = 2.0 # High reward for completing the puzzle
                 if self.gui is not None:
                     self.gui.show_success()
         else:
-            reward = -1.0
+            reward = -0.5 # Slightly softer penalty for invalid moves to encourage exploration
 
         finished = self.is_game_finished()
 
