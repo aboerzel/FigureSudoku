@@ -6,6 +6,7 @@ from gym.spaces import Box, Discrete
 
 from shapes import Geometry, Color
 from sudoku_generator import SudokuGenerator
+from visualizer import SudokuVisualizer
 
 
 class FigureSudokuEnv(gym.Env):
@@ -30,7 +31,6 @@ class FigureSudokuEnv(gym.Env):
         self.cols = len(self.colors)
 
         if render_gui:
-            from visualizer import SudokuVisualizer
             self.gui = SudokuVisualizer(env_id=self.env_id, rows=self.rows, cols=self.cols, level=self.level)
         else:
             self.gui = None
