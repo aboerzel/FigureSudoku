@@ -44,19 +44,20 @@ class FigureSudokuEnv(gym.Env):
 
         # Observation Space: Flattened one-hot encoding
         # 4x4 cells * (5 Geometries + 5 Colors) = 160 elements
+        # We use a 1D vector to avoid unnecessary image-related warnings in SB3
         self.observation_space = Box(low=0, high=1, shape=(self.rows * self.cols * 10,), dtype=np.float32)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
 
     def _get_obs(self):
-        # Convert state (4, 4, 2) to one-hot encoding (4, 4, 10) then flatten to (160,)
-        obs = np.zeros((self.rows, self.cols, 10), dtype=np.float32)
+        # Convert state (4, 4, 2) to one-hot encoding (10, 4, 4) then flatten to (160,)
+        obs = np.zeros((10, self.rows, self.cols), dtype=np.float32)
         for r in range(self.rows):
             for c in range(self.cols):
                 g_val = int(self.state[r, c, 0])
                 c_val = int(self.state[r, c, 1])
-                obs[r, c, g_val] = 1.0  # Geometry one-hot (0-4)
-                obs[r, c, 5 + c_val] = 1.0  # Color one-hot (5-9)
+                obs[g_val, r, c] = 1.0  # Geometry one-hot (0-4)
+                obs[5 + c_val, r, c] = 1.0  # Color one-hot (5-9)
         return obs.flatten()
 
     def reset(self):
