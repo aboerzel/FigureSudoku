@@ -129,7 +129,7 @@ class FigureSudokuEnv(gym.Env):
             # check game solved
             done = self.is_done(self.state)
             if done:
-                reward = 2.0 # High reward for completing the puzzle
+                reward += 2.0 # High reward for completing the puzzle
                 if self.gui is not None:
                     self.gui.show_success()
         else:

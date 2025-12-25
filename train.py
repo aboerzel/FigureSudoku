@@ -40,12 +40,12 @@ def make_vec_env(num_envs, level, render_gui=False):
 if __name__ == '__main__':
 
     # PPO Hyperparameters
-    learning_rate = 1e-4 # Lower for more stable convergence in higher levels
-    n_steps = 2048 # Increased for more data per update
-    batch_size = 512 # Increased for stability
-    ent_coef = 0.01 # Standard entropy
+    learning_rate = 5e-5 # Even lower for the last levels
+    n_steps = 4096 # More steps per update for better stability
+    batch_size = 1024 # Larger batch for more stable gradients
+    ent_coef = 0.01 
     vf_coef = 0.5
-    gamma = 0.995 # Slightly higher gamma for longer horizon logic
+    gamma = 0.995 
 
     policy_kwargs = dict(
         activation_fn=th.nn.ReLU,
