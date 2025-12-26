@@ -19,8 +19,19 @@ class GridCell:
 
     def set_shape(self, geometry, color):
         self.clear()
+        # Reset background to white
+        self.board.itemconfig(self.rect, fill='white')
+        
         if geometry != Geometry.EMPTY.value and color != Color.EMPTY.value:
+            # Full figure: normal display
             self.shape = self.get_shape(geometry, color)
+        elif geometry != Geometry.EMPTY.value:
+            # Geometry only: display as gray shape
+            self.shape = self.get_shape(geometry, None)
+        elif color != Color.EMPTY.value:
+            # Color only: fill background with that color
+            bg_color = self.get_color(color)
+            self.board.itemconfig(self.rect, fill=bg_color)
 
     def clear(self):
         if self.shape is not None:
@@ -69,7 +80,11 @@ class GridCell:
         }
         func = funcs.get(shape)
         if func:
-            return func(color=self.get_color(color))
+            if color is None:
+                color_str = 'lightgray' # Gray representation for partial geometry
+            else:
+                color_str = self.get_color(color)
+            return func(color=color_str)
         return None
 
 _root = None

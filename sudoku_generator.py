@@ -16,7 +16,7 @@ class SudokuGenerator:
         # Alle 16 möglichen Kombinationen aus Geometrie und Farbe
         self.all_shapes = list(itertools.product(self.geometries, self.colors))
 
-    def generate(self, initial_items=4):
+    def generate(self, initial_items=4, unique=False, partial_prob=0.0, partial_mode=0):
         """
         Generiert ein gültiges, gelöstes Figure-Sudoku und entfernt dann 
         Elemente, um den Startzustand für den Agenten zu erstellen.
@@ -27,47 +27,168 @@ class SudokuGenerator:
         # Versuche das Gitter vollständig zu füllen (Backtracking + MRV)
         if not self._solve(state, available_shapes):
             # Fallback (sollte bei 4x4 theoretisch nie nötig sein)
-            return self.generate(initial_items)
+            return self.generate(initial_items, unique, partial_prob, partial_mode)
             
         solved_state = state.copy()
         
-        # Erzeuge den initialen Zustand durch Entfernen von Elementen
-        init_state = solved_state.copy().reshape(-1, 2)
+        if not unique:
+            # Klassisches Verhalten: Zufälliges Entfernen ohne Eindeutigkeitsprüfung
+            init_state = solved_state.copy().reshape(-1, 2)
+            num_to_keep = max(0, min(initial_items, self.state_size))
+            keep_indices = np.random.choice(range(self.state_size), num_to_keep, replace=False)
+            mask = np.ones(self.state_size, dtype=bool)
+            mask[keep_indices] = False
+            init_state[mask] = [Geometry.EMPTY.value, Color.EMPTY.value]
+            init_state = init_state.reshape(self.rows, self.cols, 2)
+        else:
+            # Eindeutigkeits-Modus: Versuche ein Rätsel mit genau einer Lösung zu finden
+            init_state = solved_state.copy()
+            indices = list(range(self.state_size))
+            random.shuffle(indices)
+            
+            num_removed = 0
+            max_to_remove = self.state_size - initial_items
+            
+            for idx in indices:
+                if num_removed >= max_to_remove:
+                    break
+                    
+                r, c = idx // self.cols, idx % self.cols
+                old_val = init_state[r, c].copy()
+                
+                # Provisorisch entfernen
+                init_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
+                
+                # Prüfen, ob noch genau eine Lösung existiert
+                # Wir müssen die aktuell verfügbaren Figuren berechnen
+                current_available = set(self.all_shapes)
+                for row in range(self.rows):
+                    for col in range(self.cols):
+                        if init_state[row, col, 0] != Geometry.EMPTY.value:
+                            shape = (int(init_state[row, col, 0]), int(init_state[row, col, 1]))
+                            if shape in current_available:
+                                current_available.remove(shape)
+                
+                if self.count_solutions(init_state.copy(), current_available, limit=2) == 1:
+                    num_removed += 1
+                else:
+                    # Nicht eindeutig -> Figur wieder einsetzen
+                    init_state[r, c] = old_val
         
-        # Bestimme, wie viele Elemente übrig bleiben sollen
-        num_to_keep = max(0, min(initial_items, self.state_size))
-        keep_indices = np.random.choice(range(self.state_size), num_to_keep, replace=False)
-        
-        # Maske für die zu leerenden Felder
-        mask = np.ones(self.state_size, dtype=bool)
-        mask[keep_indices] = False
-        
-        # Felder auf EMPTY setzen
-        init_state[mask] = [Geometry.EMPTY.value, Color.EMPTY.value]
-        init_state = init_state.reshape(self.rows, self.cols, 2)
+        # Teilbelegungen hinzufügen (nur Form oder nur Farbe)
+        if partial_prob > 0 and partial_mode > 0:
+            if random.random() < partial_prob:
+                num_partial = 0
+                if partial_mode == 1:
+                    num_partial = 2
+                elif partial_mode == 2:
+                    num_partial = random.randint(1, 2)
+                
+                if num_partial > 0:
+                    # Finde Felder, die aktuell komplett leer sind
+                    empty_indices = []
+                    for r in range(self.rows):
+                        for c in range(self.cols):
+                            if init_state[r, c, 0] == Geometry.EMPTY.value and init_state[r, c, 1] == Color.EMPTY.value:
+                                empty_indices.append((r, c))
+                    
+                    if empty_indices:
+                        num_to_fill = min(num_partial, len(empty_indices))
+                        chosen_cells = random.sample(empty_indices, num_to_fill)
+                        
+                        for r, c in chosen_cells:
+                            # Zufällig entweder Form oder Farbe behalten
+                            if random.choice([True, False]):
+                                # Nur Form behalten
+                                init_state[r, c] = [solved_state[r, c, 0], Color.EMPTY.value]
+                            else:
+                                # Nur Farbe behalten
+                                init_state[r, c] = [Geometry.EMPTY.value, solved_state[r, c, 1]]
         
         return solved_state, init_state
+
+    def count_solutions(self, state, available_shapes, limit=2):
+        """
+        Zählt die Anzahl der Lösungen für einen gegebenen Zustand.
+        Bricht ab, wenn das Limit erreicht ist.
+        """
+        # Finde alle leeren oder unvollständigen Felder und berechne deren Möglichkeiten
+        empty_cells = []
+        for r in range(self.rows):
+            for c in range(self.cols):
+                # Feld ist leer, wenn Geometrie ODER Farbe fehlt
+                if state[r, c, 0] == Geometry.EMPTY.value or state[r, c, 1] == Color.EMPTY.value:
+                    existing_g = int(state[r, c, 0])
+                    existing_c = int(state[r, c, 1])
+                    
+                    possibilities = []
+                    for s in available_shapes:
+                        # Respektiere bereits gesetzte Attribute (Teilbelegungen)
+                        if existing_g != Geometry.EMPTY.value and existing_g != s[0]:
+                            continue
+                        if existing_c != Color.EMPTY.value and existing_c != s[1]:
+                            continue
+                            
+                        if self._is_safe(state, r, c, s[0], s[1]):
+                            possibilities.append(s)
+                    
+                    empty_cells.append(((r, c), possibilities))
+        
+        # Wenn kein leeres Feld mehr da ist, haben wir eine Lösung gefunden
+        if not empty_cells:
+            return 1
+            
+        # MRV Heuristik
+        empty_cells.sort(key=lambda x: len(x[1]))
+        (r, c), possibilities = empty_cells[0]
+        
+        count = 0
+        for g, col in possibilities:
+            old_val = state[r, c].copy()
+            state[r, c] = [g, col]
+            available_shapes.remove((g, col))
+            
+            count += self.count_solutions(state, available_shapes, limit)
+            
+            # Backtrack
+            available_shapes.add((g, col))
+            state[r, c] = old_val
+            
+            if count >= limit:
+                return count
+                
+        return count
 
     def _solve(self, state, available_shapes):
         """
         Backtracking-Algorithmus mit Minimum Remaining Values (MRV) Heuristik.
         """
-        # Finde alle leeren Felder und berechne deren Möglichkeiten
+        # Finde alle leeren oder unvollständigen Felder und berechne deren Möglichkeiten
         empty_cells = []
         for r in range(self.rows):
             for c in range(self.cols):
-                if state[r, c, 0] == Geometry.EMPTY.value:
-                    possibilities = [
-                        s for s in available_shapes 
-                        if self._is_safe(state, r, c, s[0], s[1])
-                    ]
+                if state[r, c, 0] == Geometry.EMPTY.value or state[r, c, 1] == Color.EMPTY.value:
+                    existing_g = int(state[r, c, 0])
+                    existing_c = int(state[r, c, 1])
+                    
+                    possibilities = []
+                    for s in available_shapes:
+                        # Respektiere bereits gesetzte Attribute (Teilbelegungen)
+                        if existing_g != Geometry.EMPTY.value and existing_g != s[0]:
+                            continue
+                        if existing_c != Color.EMPTY.value and existing_c != s[1]:
+                            continue
+                            
+                        if self._is_safe(state, r, c, s[0], s[1]):
+                            possibilities.append(s)
+                            
                     empty_cells.append(((r, c), possibilities))
         
         # Wenn kein leeres Feld mehr da ist, haben wir eine Lösung
         if not empty_cells:
             return True
             
-        # MRV: Wähle das Feld mit den wenigsten Möglichkeiten (beschleunigt die Suche)
+        # MRV: Wähle das Feld mit den wenigsten Möglichkeiten
         empty_cells.sort(key=lambda x: len(x[1]))
         (r, c), possibilities = empty_cells[0]
         
@@ -78,6 +199,7 @@ class SudokuGenerator:
         # Probiere die Möglichkeiten in zufälliger Reihenfolge
         random.shuffle(possibilities)
         for g, col in possibilities:
+            old_val = state[r, c].copy()
             state[r, c] = [g, col]
             available_shapes.remove((g, col))
             
@@ -86,17 +208,20 @@ class SudokuGenerator:
                 
             # Backtrack: Zustand zurücksetzen
             available_shapes.add((g, col))
-            state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
+            state[r, c] = old_val
             
         return False
 
     def _is_safe(self, state, r, c, g, col):
         """Prüft, ob das Platzieren einer Figur gegen Sudoku-Regeln verstößt."""
-        # Einfache Schleifen sind bei 4x4 oft schneller als NumPy
+        # Zeilenprüfung (aktuelle Spalte ausschließen)
         for i in range(self.cols):
-            if state[r, i, 0] == g or state[r, i, 1] == col:
-                return False
+            if i != c:
+                if state[r, i, 0] == g or state[r, i, 1] == col:
+                    return False
+        # Spaltenprüfung (aktuelle Zeile ausschließen)
         for i in range(self.rows):
-            if state[i, c, 0] == g or state[i, c, 1] == col:
-                return False
+            if i != r:
+                if state[i, c, 0] == g or state[i, c, 1] == col:
+                    return False
         return True

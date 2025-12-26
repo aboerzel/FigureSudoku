@@ -1,21 +1,14 @@
-import argparse
 import math
-import os
 import random
 from threading import Thread
 from tkinter import *
 import tkinter as tk
 import numpy as np
-from stable_baselines3 import A2C
+from sb3_contrib import MaskablePPO
 
 import config
 from figure_sudoko_env import FigureSudokuEnv
 from shapes import Geometry, Color
-
-ap = argparse.ArgumentParser()
-ap.add_argument("-l", "--level", required=False, default=3, type=int, help="start level")
-args = vars(ap.parse_args())
-
 
 class GridCell:
     def __init__(self, board, row, col, width=80, height=80):
@@ -50,9 +43,19 @@ class GridCell:
 
     def set_shape(self, geometry, color):
         self.clear()
-
+        # Reset background to white
+        self.board.itemconfig(self.rect, fill='white')
+        
         if geometry != Geometry.EMPTY.value and color != Color.EMPTY.value:
+            # Full figure: normal display
             self.shape = self.get_shape(geometry, color)
+        elif geometry != Geometry.EMPTY.value:
+            # Geometry only: display as gray shape
+            self.shape = self.get_shape(geometry, None)
+        elif color != Color.EMPTY.value:
+            # Color only: fill background with that color
+            bg_color = self.get_color(color)
+            self.board.itemconfig(self.rect, fill=bg_color)
 
     def clear(self):
         if self.shape is not None:
@@ -162,27 +165,31 @@ class GridCell:
         }[color]
 
     def get_shape(self, shape, color):
-        return {
+        func = {
             Geometry.QUADRAT.value: self.create_quadrat,
             Geometry.TRIANGLE.value: self.create_triangle,
             Geometry.CIRCLE.value: self.create_circle,
             Geometry.HEXAGON.value: self.create_hexagon
-        }[shape](color=self.get_color(color))
+        }.get(shape)
+        if func:
+            color_str = 'lightgray' if color is None else self.get_color(color)
+            return func(color=color_str)
+        return None
 
 
 class SudokuApp(tk.Tk):
-    def __init__(self, model, env, level):
+    def __init__(self, model, env):
         super().__init__()
 
         self.model = model
         self.env = env
-        self.level = level
+        self.level = 3
 
-        self.rows = 4
-        self.cols = 4
+        self.rows = env.rows
+        self.cols = env.cols
         self.cell_width = self.cell_height = 82
 
-        self.width = self.cell_width * self.cols + 80
+        self.width = self.cell_width * self.cols + 120
         self.height = self.cell_height * self.rows
 
         self.geometry(f"{self.width}x{self.height}")
@@ -193,7 +200,7 @@ class SudokuApp(tk.Tk):
         # self.columnconfigure(0, weight=1)
         # self.columnconfigure(1, weight=3)
 
-        self.grid = np.array([x for x in [[None] * self.rows] * self.cols])
+        self.grid = np.empty((self.rows, self.cols), dtype=object)
 
         self.create_board()
 
@@ -201,9 +208,17 @@ class SudokuApp(tk.Tk):
 
         self.stop_train = False
         self.game_state = None
+        self.obs = None
 
     def create_game(self):
-        self.game_state = self.env.reset_with_level(level=self.level)
+        self.level = self.level_slider.get()
+        self.obs = self.env.reset_with_level(
+            level=self.level,
+            unique=True,
+            partial_prob=self.partial_prob_slider.get(),
+            partial_mode=self.partial_mode_slider.get()
+        )
+        self.game_state = self.env.state.copy()
         self.display_state(self.game_state)
 
     def solve_game(self):
@@ -227,38 +242,72 @@ class SudokuApp(tk.Tk):
 
         sidebar = Frame(board, width=100, bg='grey')
 
-        reset_button = Button(sidebar, text="New Game", command=self.create_game)
-        reset_button.pack(anchor=CENTER, padx=5, pady=5)
+        self.reset_button = Button(sidebar, text="New Game", command=self.create_game)
+        self.reset_button.pack(anchor=CENTER, padx=5, pady=5)
 
-        solve_button = Button(sidebar, text="Solve", command=self.solve_game)
-        solve_button.pack(anchor=CENTER, padx=5, pady=5)
+        self.solve_button = Button(sidebar, text="Solve", command=self.solve_game)
+        self.solve_button.pack(anchor=CENTER, padx=5, pady=5)
+
+        self.level_slider = Scale(sidebar, from_=1, to=self.rows * self.cols, orient=HORIZONTAL, label="Level", bg='grey', highlightthickness=0)
+        self.level_slider.set(self.level)
+        self.level_slider.pack(anchor=CENTER, padx=5, pady=5)
+
+        self.partial_prob_slider = Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, orient=HORIZONTAL, label="Partial Prob", bg='grey', highlightthickness=0)
+        self.partial_prob_slider.set(config.PARTIAL_PROB)
+        self.partial_prob_slider.pack(anchor=CENTER, padx=5, pady=5)
+
+        self.partial_mode_slider = Scale(sidebar, from_=0, to=2, orient=HORIZONTAL, label="Partial Mode", bg='grey', highlightthickness=0)
+        self.partial_mode_slider.set(config.PARTIAL_MODE)
+        self.partial_mode_slider.pack(anchor=CENTER, padx=5, pady=5)
 
         sidebar.pack(anchor=E, fill=Y, expand=False, side=RIGHT)
 
     def display_state(self, state):
-        state = state.reshape(self.rows, self.cols, 2)
+        # state ist hier bereits (rows, cols, 2) direkt aus env.state
         for row in range(self.rows):
-            for col in range(self. cols):
+            for col in range(self.cols):
                 (geometry, color) = state[row][col]
                 self.grid[row][col].set_shape(geometry, color)
 
     def solve(self):
+        self.solve_button.config(state=DISABLED)
+        self.reset_button.config(state=DISABLED)
+        self.level_slider.config(state=DISABLED)
+        self.partial_prob_slider.config(state=DISABLED)
+        self.partial_mode_slider.config(state=DISABLED)
+
         actions = []
+
         for i in range(1, self.level+1):
-            action, _states = self.model.predict(self.game_state, deterministic=True)
+            if self.stop_train:
+                break
+            action, _states = self.model.predict(self.obs, deterministic=True)
             actions.append(action)
-            self.game_state, reward, done, info = self.env.step(action)
+            self.obs, reward, done, info = self.env.step(action)
+            self.game_state = self.env.state.copy()
             self.display_state(self.game_state)
             if done:
                 print(f'Sudoku solved in {i} moves! {np.array(actions)}')
-                return
+                break
+        else:
+            if not done:
+                print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
 
-        print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
+        if not self.stop_train:
+            self.solve_button.config(state=NORMAL)
+            self.reset_button.config(state=NORMAL)
+            self.level_slider.config(state=NORMAL)
+            self.partial_prob_slider.config(state=NORMAL)
+            self.partial_mode_slider.config(state=NORMAL)
 
 
 if __name__ == "__main__":
-    MODEL_PATH = os.path.join(config.OUTPUT_DIR, "test.zip")
-    model = A2C.load(MODEL_PATH)
-    env = FigureSudokuEnv()
-    app = SudokuApp(model, env, args['level'])
+    model = MaskablePPO.load(config.MODEL_PATH)
+    env = FigureSudokuEnv(
+        reward_solved=config.REWARD_SOLVED,
+        reward_valid_move_base=config.REWARD_VALID_MOVE_BASE,
+        reward_invalid_move=config.REWARD_INVALID_MOVE
+    )
+        
+    app = SudokuApp(model, env)
     app.mainloop()

@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 
-import config
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.results_plotter import ts2xy, load_results
 
@@ -12,12 +11,18 @@ class CurriculumCallback(BaseCallback):
     Callback for increasing the difficulty level of the environment
     based on the success rate.
     """
-    def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, verbose: int = 1):
+    def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, reward_solved: float, start_level: int = 1, max_level: int = 16, 
+                 unique: bool = False, partial_prob: float = 0.0, partial_mode: int = 0, verbose: int = 1):
         super(CurriculumCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.reward_threshold = reward_threshold
         self.log_dir = log_dir
-        self.current_level = config.START_LEVEL
+        self.reward_solved = reward_solved
+        self.current_level = start_level
+        self.max_level = max_level
+        self.unique = unique
+        self.partial_prob = partial_prob
+        self.partial_mode = partial_mode
         self.episodes_at_start_of_level = 0
 
     def _on_step(self) -> bool:
@@ -30,20 +35,25 @@ class CurriculumCallback(BaseCallback):
                 
                 if episodes_at_current_level >= 100: # Mindestens 100 Episoden auf dem aktuellen Level
                     last_rewards = y[-100:]
-                    # Eine Episode gilt als erfolgreich (DONE), wenn der Abschluss-Bonus von 2.0 erreicht wurde.
-                    success_rate = np.mean([1 if r >= 2.0 else 0 for r in last_rewards])
+                    
+                    # Schwellenwert für Erfolg (Reward >= self.reward_solved bedeutet Episode abgeschlossen)
+                    success_rate = np.mean([1 if r >= self.reward_solved else 0 for r in last_rewards])
                     
                     if self.verbose > 0:
                         print(f"Curriculum Check: Level {self.current_level} - Success Rate: {success_rate:.2f} (Window: 100, Episodes at Level: {episodes_at_current_level})", flush=True)
 
-                    if success_rate > self.reward_threshold and self.current_level < config.MAX_LEVEL:
+                    if success_rate > self.reward_threshold and self.current_level < self.max_level:
                         self.current_level += 1
                         self.episodes_at_start_of_level = num_episodes
                         if self.verbose > 0:
                             print(f"Success rate {success_rate:.2f} > {self.reward_threshold}. Increasing difficulty level to: {self.current_level}", flush=True)
                         
                         # Level in allen Umgebungen aktualisieren
-                        self.training_env.env_method("reset_with_level", self.current_level)
+                        self.training_env.env_method("reset_with_level",
+                                                     level=self.current_level,
+                                                     unique=self.unique, 
+                                                     partial_prob=self.partial_prob, 
+                                                     partial_mode=self.partial_mode)
                 elif num_episodes > 0 and self.verbose > 1:
                     print(f"Waiting for more episodes at level {self.current_level} (current: {episodes_at_current_level}/100)", flush=True)
             except Exception as e:

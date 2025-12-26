@@ -91,7 +91,18 @@ class SudokuCNN(BaseFeaturesExtractor):
 
 
 def make_sudoku_env(env_id, level, render_gui=False):
-    env = FigureSudokuEnv(env_id=env_id, level=level, max_steps=config.MAX_TIMESTEPS, render_gui=render_gui)
+    env = FigureSudokuEnv(
+        env_id=env_id, 
+        level=level, 
+        max_steps=config.MAX_TIMESTEPS, 
+        render_gui=render_gui,
+        unique=config.UNIQUE,
+        partial_prob=config.PARTIAL_PROB,
+        partial_mode=config.PARTIAL_MODE,
+        reward_solved=config.REWARD_SOLVED,
+        reward_valid_move_base=config.REWARD_VALID_MOVE_BASE,
+        reward_invalid_move=config.REWARD_INVALID_MOVE
+    )
     check_env(env)
     env = Monitor(env, f'{config.OUTPUT_DIR}/train_{env_id}')
     return env
@@ -116,9 +127,11 @@ def make_vec_env(num_envs, level, render_gui=False):
 if __name__ == '__main__':
 
     # PPO Hyperparameters
-    initial_learning_rate = 1e-4 # Start slightly higher with schedule
+    initial_learning_rate = 1e-4 
     n_steps = 4096 
     batch_size = 1024 
+    n_epochs = 5      # Reduced from 10 to improve stability and speed up iterations
+    target_kl = 0.02  # Added to prevent too large policy updates (the "dips")
     ent_coef = 0.01 
     vf_coef = 0.5
     gamma = 0.995 
@@ -139,6 +152,8 @@ if __name__ == '__main__':
             'learning_rate': lr_schedule,
             'n_steps': n_steps,
             'batch_size': batch_size,
+            'n_epochs': n_epochs,
+            'target_kl': target_kl,
             'gamma': gamma,
             'ent_coef': ent_coef,
             'vf_coef': vf_coef,
@@ -146,10 +161,20 @@ if __name__ == '__main__':
         }
         model = MaskablePPO.load(config.MODEL_PATH, env=train_env, custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
     else:
-        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, learning_rate=lr_schedule, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, n_epochs=n_epochs, target_kl=target_kl, learning_rate=lr_schedule, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=config.CHECK_FREQ, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME)
-    curriculum_callback = CurriculumCallback(check_freq=config.CHECK_FREQ, reward_threshold=config.REWARD_THRESHOLD, log_dir=config.OUTPUT_DIR)
+    curriculum_callback = CurriculumCallback(
+        check_freq=config.CHECK_FREQ, 
+        reward_threshold=config.REWARD_THRESHOLD, 
+        log_dir=config.OUTPUT_DIR,
+        reward_solved=config.REWARD_SOLVED,
+        start_level=config.START_LEVEL,
+        max_level=config.MAX_LEVEL,
+        unique=config.UNIQUE,
+        partial_prob=config.PARTIAL_PROB,
+        partial_mode=config.PARTIAL_MODE
+    )
 
     callback = CallbackList([save_best_model_callback, curriculum_callback])
 

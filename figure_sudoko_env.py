@@ -11,10 +11,17 @@ from visualizer import SudokuVisualizer
 
 class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, env_id=0, level=1, max_steps=None, render_gui=False):
+    def __init__(self, env_id=0, level=1, max_steps=None, render_gui=False, unique=False, partial_prob=0.0, partial_mode=0,
+                 reward_solved=10.0, reward_valid_move_base=0.1, reward_invalid_move=-0.5):
         super(FigureSudokuEnv, self).__init__()
         self.env_id = env_id
         self.level = level
+        self.unique = unique
+        self.partial_prob = partial_prob
+        self.partial_mode = partial_mode
+        self.reward_solved = reward_solved
+        self.reward_valid_move_base = reward_valid_move_base
+        self.reward_invalid_move = reward_invalid_move
 
         self.max_steps = max_steps
         # Counter of steps per episode
@@ -37,8 +44,8 @@ class FigureSudokuEnv(gym.Env):
         self.figures = np.array(list(itertools.product(self.geometries, self.colors)))
         fields = np.array(list(itertools.product(np.arange(self.rows), np.arange(self.cols))))
         self.actions = np.array(list(itertools.product(self.figures, fields)), dtype=object)
-        self.state = np.array([x for x in [[(Geometry.EMPTY.value, Color.EMPTY.value)] * self.rows] * self.cols])
-        self.solved_state = self.state
+        self.state = np.full((self.rows, self.cols, 2), Geometry.EMPTY.value, dtype=np.int32)
+        self.solved_state = self.state.copy()
 
         self.action_space = Discrete(n=len(self.actions))
 
@@ -68,28 +75,29 @@ class FigureSudokuEnv(gym.Env):
         self.valids = 0
 
         initial_items = (self.rows * self.cols) - self.level
-        self.solved_state, self.state = self.generator.generate(initial_items=initial_items)
+        self.solved_state, self.state = self.generator.generate(
+            initial_items=initial_items, 
+            unique=self.unique,
+            partial_prob=self.partial_prob, 
+            partial_mode=self.partial_mode
+        )
 
         if self.gui is not None:
             self.gui.clear_visual_feedback()
+            self.gui.update_title(self.level)
             self.gui.display_state(self.state)
 
         return self._get_obs()
 
-    def reset_with_level(self, level):
+    def reset_with_level(self, level, unique=None, partial_prob=None, partial_mode=None):
         self.level = level
-        initial_items = (self.rows * self.cols) - level
-        self.solved_state, self.state = self.generator.generate(initial_items=initial_items)
-
-        if self.gui is not None:
-            self.gui.clear_visual_feedback()
-            self.gui.update_title(level)
-            self.gui.display_state(self.state)
-
-        # Reset the counter
-        self.current_step = 0
-
-        return self._get_obs()
+        if unique is not None:
+            self.unique = unique
+        if partial_prob is not None:
+            self.partial_prob = partial_prob
+        if partial_mode is not None:
+            self.partial_mode = partial_mode
+        return self.reset()
 
     def render(self, **kwargs):
         # update gui
@@ -123,20 +131,28 @@ class FigureSudokuEnv(gym.Env):
             self.perform_action(target_action)
 
             # Reward for a valid move
-            # Base reward of 0.1 to encourage any valid move.
-            # Plus a progress bonus: 1.0 divided by total cells (16), so each field is worth 0.0625.
-            reward = 0.1 + (1.0 / (self.rows * self.cols)) 
+            # Base reward to encourage any valid move, plus a progress bonus.
+            reward = self.reward_valid_move_base + (1.0 / (self.rows * self.cols)) 
 
             # check game solved
             done = self.is_done(self.state)
             if done:
-                reward += 2.0 # High reward for completing the puzzle
+                reward += self.reward_solved
                 if self.gui is not None:
                     self.gui.show_success()
         else:
-            reward = -0.5 # Slightly softer penalty for invalid moves to encourage exploration
+            reward = self.reward_invalid_move
 
-        finished = self.is_game_finished()
+        # Calculate action mask once for efficiency
+        mask = self.action_masks()
+
+        # Check if the game is finished (no more moves possible)
+        finished = False
+        if not done:
+            if FigureSudokuEnv.get_empty_fields(self.state) == 0:
+                finished = True
+            else:
+                finished = not np.any(mask)
 
         self.rewards.append(reward)
         mean_reward = np.mean(np.array(self.rewards))
@@ -148,9 +164,7 @@ class FigureSudokuEnv(gym.Env):
             if self.gui is not None:
                 self.gui.show_failure()
 
-        info = {}
-        # Provide the action mask for MaskablePPO
-        info["action_mask"] = self.action_masks()
+        info = {"action_mask": mask}
 
         if done:
             print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f} - DONE", flush=True)
@@ -173,11 +187,23 @@ class FigureSudokuEnv(gym.Env):
     def is_valid_action(self, action):
         (geometry, color) = action[0]
         (row, col) = action[1]
+        
+        g_val = geometry.value if hasattr(geometry, 'value') else geometry
+        c_val = color.value if hasattr(color, 'value') else color
 
-        if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
+        # Check if the cell is already fully occupied
+        if self.state[row, col, 0] != Geometry.EMPTY.value and self.state[row, col, 1] != Color.EMPTY.value:
             return False
 
-        if not FigureSudokuEnv.is_field_empty(self.state, row, col):
+        # If geometry is pre-filled, the action's geometry must match
+        if self.state[row, col, 0] != Geometry.EMPTY.value and self.state[row, col, 0] != g_val:
+            return False
+        
+        # If color is pre-filled, the action's color must match
+        if self.state[row, col, 1] != Color.EMPTY.value and self.state[row, col, 1] != c_val:
+            return False
+
+        if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
             return False
 
         if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
@@ -190,14 +216,15 @@ class FigureSudokuEnv(gym.Env):
         (row, col) = action[1]
         g_val = geometry.value if hasattr(geometry, 'value') else geometry
         c_val = color.value if hasattr(color, 'value') else color
-        self.state[row][col] = [g_val, c_val]
+        self.state[row, col] = [g_val, c_val]
 
         if self.gui is not None:
             self.gui.display_state(self.state)
 
     @staticmethod
     def is_field_empty(state, row, col):
-        return state[row][col][0] == Geometry.EMPTY.value
+        # A field is considered empty if it's missing either geometry or color
+        return state[row, col, 0] == Geometry.EMPTY.value or state[row, col, 1] == Color.EMPTY.value
 
     @staticmethod
     def is_figure_available(state, geometry, color):
@@ -210,23 +237,29 @@ class FigureSudokuEnv(gym.Env):
 
     @staticmethod
     def get_empty_fields(state):
-        return np.sum(state[:, :, 0] == Geometry.EMPTY.value)
+        # A field is considered empty if it's missing either geometry or color
+        return np.sum((state[:, :, 0] == Geometry.EMPTY.value) | (state[:, :, 1] == Color.EMPTY.value))
 
     @staticmethod
     def is_done(state):
-        return FigureSudokuEnv.get_empty_fields(state) == 0
+        # Done means all cells have both geometry and color
+        return np.all(state[:, :, 0] != Geometry.EMPTY.value) and np.all(state[:, :, 1] != Color.EMPTY.value)
 
     @staticmethod
     def can_move(state, row, col, geometry, color):
         g_val = geometry.value if hasattr(geometry, 'value') else geometry
         c_val = color.value if hasattr(color, 'value') else color
 
-        # Check row
-        if np.any(state[row, :, 0] == g_val) or np.any(state[row, :, 1] == c_val):
+        # Check row, excluding the current cell
+        row_state_g = np.delete(state[row, :, 0], col)
+        row_state_c = np.delete(state[row, :, 1], col)
+        if np.any(row_state_g == g_val) or np.any(row_state_c == c_val):
             return False
         
-        # Check column
-        if np.any(state[:, col, 0] == g_val) or np.any(state[:, col, 1] == c_val):
+        # Check column, excluding the current cell
+        col_state_g = np.delete(state[:, col, 0], row)
+        col_state_c = np.delete(state[:, col, 1], row)
+        if np.any(col_state_g == g_val) or np.any(col_state_c == c_val):
             return False
 
         return True
