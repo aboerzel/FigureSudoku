@@ -77,8 +77,8 @@ class SudokuGenerator:
         
         # Teilbelegungen hinzufügen (bereits gesetzte Felder reduzieren)
         if partial_prob > 0 and partial_mode > 0:
+            num_to_modify = 0
             if random.random() < partial_prob:
-                num_to_modify = 0
                 if partial_mode == 1:
                     num_to_modify = 2
                 elif partial_mode == 2:
@@ -144,15 +144,15 @@ class SudokuGenerator:
         (r, c), possibilities = empty_cells[0]
         
         count = 0
-        for g, col in possibilities:
+        for g_val, c_val in possibilities:
             old_val = state[r, c].copy()
-            state[r, c] = [g, col]
-            available_shapes.remove((g, col))
+            state[r, c] = [g_val, c_val]
+            available_shapes.remove((g_val, c_val))
             
             count += self.count_solutions(state, available_shapes, limit)
             
             # Backtrack
-            available_shapes.add((g, col))
+            available_shapes.add((g_val, c_val))
             state[r, c] = old_val
             
             if count >= limit:
@@ -199,16 +199,16 @@ class SudokuGenerator:
             
         # Probiere die Möglichkeiten in zufälliger Reihenfolge
         random.shuffle(possibilities)
-        for g, col in possibilities:
+        for g_val, c_val in possibilities:
             old_val = state[r, c].copy()
-            state[r, c] = [g, col]
-            available_shapes.remove((g, col))
+            state[r, c] = [g_val, c_val]
+            available_shapes.remove((g_val, c_val))
             
             if self._solve(state, available_shapes):
                 return True
                 
             # Backtrack: Zustand zurücksetzen
-            available_shapes.add((g, col))
+            available_shapes.add((g_val, c_val))
             state[r, c] = old_val
             
         return False

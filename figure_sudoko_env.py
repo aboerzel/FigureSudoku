@@ -41,9 +41,12 @@ class FigureSudokuEnv(gym.Env):
             self.gui = SudokuVisualizer(env_id=self.env_id, rows=self.rows, cols=self.cols, level=self.level)
         else:
             self.gui = None
-        self.figures = np.array(list(itertools.product(self.geometries, self.colors)))
+        self.figures = np.array([(int(g), int(c)) for g, c in itertools.product(self.geometries, self.colors)])
         fields = np.array(list(itertools.product(np.arange(self.rows), np.arange(self.cols))))
-        self.actions = np.array(list(itertools.product(self.figures, fields)), dtype=object)
+        self.actions = list(itertools.product(self.figures, fields))
+        self.action_figures = np.array([a[0] for a in self.actions], dtype=np.int32)
+        self.action_fields = np.array([a[1] for a in self.actions], dtype=np.int32)
+
         self.state = np.full((self.rows, self.cols, 2), Geometry.EMPTY.value, dtype=np.int32)
         self.solved_state = self.state.copy()
 
@@ -55,21 +58,23 @@ class FigureSudokuEnv(gym.Env):
         self.observation_space = Box(low=0, high=1, shape=(self.rows * self.cols * 10,), dtype=np.float32)
 
         self.generator = SudokuGenerator(self.geometries, self.colors)
+        self._action_mask = None
 
     def _get_obs(self):
         # Convert state (4, 4, 2) to one-hot encoding (10, 4, 4) then flatten to (160,)
         obs = np.zeros((10, self.rows, self.cols), dtype=np.float32)
-        for r in range(self.rows):
-            for c in range(self.cols):
-                g_val = int(self.state[r, c, 0])
-                c_val = int(self.state[r, c, 1])
-                obs[g_val, r, c] = 1.0  # Geometry one-hot (0-4)
-                obs[5 + c_val, r, c] = 1.0  # Color one-hot (5-9)
+        
+        # Efficiently fill one-hot using indexing
+        rows, cols = np.indices((self.rows, self.cols))
+        obs[self.state[:, :, 0], rows, cols] = 1.0
+        obs[5 + self.state[:, :, 1], rows, cols] = 1.0
+        
         return obs.flatten()
 
     def reset(self):
         self.current_step = 0
         self.episode += 1
+        self._action_mask = None
 
         self.rewards = []
         self.valids = 0
@@ -108,34 +113,86 @@ class FigureSudokuEnv(gym.Env):
         if self.gui is not None and hasattr(self.gui, 'close'):
             self.gui.close()
 
-    def action_masks(self):
-        mask = np.zeros(len(self.actions), dtype=bool)
-        for i, action in enumerate(self.actions):
-            if self.is_valid_action(action):
-                mask[i] = True
-        return mask
+    def action_masks(self) -> np.ndarray:
+        if self._action_mask is not None:
+            return self._action_mask
+
+        board_g = self.state[:, :, 0]
+        board_c = self.state[:, :, 1]
+        
+        # 1. Figure availability (only completed figures count as used)
+        mask_completed = (board_g != 0) & (board_c != 0)
+        used_figs = np.zeros((5, 5), dtype=bool)
+        for g, c in zip(board_g[mask_completed], board_c[mask_completed]):
+            used_figs[g, c] = True
+            
+        # 2. Row/Col constraints pre-calculation
+        row_has_g = np.zeros((self.rows, 5), dtype=bool)
+        row_has_c = np.zeros((self.rows, 5), dtype=bool)
+        col_has_g = np.zeros((self.cols, 5), dtype=bool)
+        col_has_c = np.zeros((self.cols, 5), dtype=bool)
+        
+        for r in range(self.rows):
+            for c in range(self.cols):
+                gv, cv = board_g[r, c], board_c[r, c]
+                if gv != 0:
+                    row_has_g[r, gv] = True
+                    col_has_g[c, gv] = True
+                if cv != 0:
+                    row_has_c[r, cv] = True
+                    col_has_c[c, cv] = True
+        
+        masks = np.ones(len(self.actions), dtype=bool)
+        for i in range(len(self.actions)):
+            gv, cv = self.action_figures[i]
+            r, c = self.action_fields[i]
+            
+            # Figure already used?
+            if used_figs[gv, cv]:
+                masks[i] = False
+                continue
+            
+            # Field occupied with different geometry or color?
+            curr_g, curr_c = board_g[r, c], board_c[r, c]
+            if (curr_g != 0 and curr_g != gv) or (curr_c != 0 and curr_c != cv):
+                masks[i] = False
+                continue
+            
+            # Field already full?
+            if curr_g != 0 and curr_c != 0:
+                masks[i] = False
+                continue
+
+            # Sudoku rules (check if figure's G or C exists elsewhere in Row/Col)
+            if (row_has_g[r, gv] and curr_g != gv) or (row_has_c[r, cv] and curr_c != cv):
+                masks[i] = False
+                continue
+            if (col_has_g[c, gv] and curr_g != gv) or (col_has_c[c, cv] and curr_c != cv):
+                masks[i] = False
+                continue
+        
+        self._action_mask = masks
+        return self._action_mask
 
     def step(self, action):
         self.current_step += 1
 
-        target_action = self.actions[action]
+        # Get action mask for the current state
+        mask_before = self.action_masks()
+        is_valid = mask_before[action]
 
+        target_action = self.actions[action]
         reward = 0.0
         done = False
 
-        # check if the action is valid
-        if self.is_valid_action(target_action):
+        if is_valid:
             self.valids += 1
-            
-            # perform action if it is valid
             self.perform_action(target_action)
 
             # Reward for a valid move
-            # Base reward to encourage any valid move, plus a progress bonus.
             reward = self.reward_valid_move_base + (1.0 / (self.rows * self.cols)) 
 
-            # check game solved
-            done = self.is_done(self.state)
+            done = FigureSudokuEnv.is_done(self.state)
             if done:
                 reward += self.reward_solved
                 if self.gui is not None:
@@ -143,19 +200,19 @@ class FigureSudokuEnv(gym.Env):
         else:
             reward = self.reward_invalid_move
 
-        # Calculate action mask once for efficiency
-        mask = self.action_masks()
+        # Get action mask for the new state (cached or recomputed)
+        mask_after = self.action_masks()
 
         # Check if the game is finished (no more moves possible)
         finished = False
         if not done:
-            if FigureSudokuEnv.get_empty_fields(self.state) == 0:
+            if not np.any(mask_after):
                 finished = True
-            else:
-                finished = not np.any(mask)
+            elif FigureSudokuEnv.get_empty_fields(self.state) == 0:
+                finished = True
 
         self.rewards.append(reward)
-        mean_reward = np.mean(np.array(self.rewards))
+        mean_reward = np.mean(self.rewards)
 
         # An episode ends when no further move is possible or the maximum number of time steps is reached
         episode_over = done or finished or (self.max_steps is not None and self.current_step >= self.max_steps)
@@ -164,7 +221,7 @@ class FigureSudokuEnv(gym.Env):
             if self.gui is not None:
                 self.gui.show_failure()
 
-        info = {"action_mask": mask}
+        info = {"action_mask": mask_after}
 
         if done:
             print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f} - DONE", flush=True)
@@ -217,6 +274,7 @@ class FigureSudokuEnv(gym.Env):
         g_val = geometry.value if hasattr(geometry, 'value') else geometry
         c_val = color.value if hasattr(color, 'value') else color
         self.state[row, col] = [g_val, c_val]
+        self._action_mask = None
 
         if self.gui is not None:
             self.gui.display_state(self.state)

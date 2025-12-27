@@ -281,7 +281,8 @@ class SudokuApp(tk.Tk):
         for i in range(1, self.level+1):
             if self.stop_train:
                 break
-            action, _states = self.model.predict(self.obs, deterministic=True)
+            action_masks = self.env.action_masks()
+            action, _states = self.model.predict(self.obs, action_masks=action_masks, deterministic=True)
             actions.append(action)
             self.obs, reward, done, info = self.env.step(action)
             self.game_state = self.env.state.copy()

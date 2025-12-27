@@ -15,6 +15,50 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from typing import Callable
+import re
+
+
+def get_last_level(log_path: str, default_level: int = 1) -> int:
+    """
+    Versucht das zuletzt erreichte Level aus der Log-Datei zu extrahieren.
+    Liest die Datei speichereffizient von hinten und unterstützt UTF-8 und UTF-16.
+    """
+    if not os.path.exists(log_path):
+        return default_level
+    
+    try:
+        size = os.path.getsize(log_path)
+        if size == 0:
+            return default_level
+            
+        with open(log_path, 'rb') as f:
+            # Versuche die letzten 20000 Bytes zu lesen (ca. 100-200 Zeilen)
+            read_size = min(size, 20000)
+            f.seek(-read_size, os.SEEK_END)
+            data = f.read()
+            
+            # Kodierung erkennen: Wenn viele Null-Bytes vorhanden sind, ist es wahrscheinlich UTF-16
+            if b'\x00' in data:
+                try:
+                    # UTF-16 LE (oft bei PowerShell > Umleitung)
+                    # Wir müssen sicherstellen, dass wir an einer geraden Grenze anfangen,
+                    # falls wir nicht die ganze Datei lesen.
+                    # Aber decode('utf-16') mit ignore sollte robust sein.
+                    text = data.decode('utf-16', errors='ignore')
+                except:
+                    text = data.decode('utf-8', errors='ignore')
+            else:
+                text = data.decode('utf-8', errors='ignore')
+                
+            lines = text.splitlines()
+            for line in reversed(lines):
+                match = re.search(r"level (\d+)", line)
+                if match:
+                    return int(match.group(1))
+    except Exception as e:
+        print(f"Warnung: Konnte letztes Level nicht aus Log lesen: {e}")
+    
+    return default_level
 
 
 def linear_schedule(initial_value: float) -> Callable[[float], float]:
@@ -145,7 +189,18 @@ if __name__ == '__main__':
         net_arch=dict(pi=[256], vf=[256])
     )
 
-    train_env = make_vec_env(config.NUM_AGENTS, config.START_LEVEL, render_gui=config.RENDER_GUI)
+    # Versuche das letzte Level aus dem Log zu laden, falls wir ein Modell fortsetzen
+    current_start_level = config.START_LEVEL
+    log_file_path = os.path.join(config.OUTPUT_DIR, "training.log")
+    if os.path.isfile(config.MODEL_PATH):
+        current_start_level = get_last_level(log_file_path, config.START_LEVEL)
+        # Falls im Output-Dir nichts war, im Root schauen
+        if current_start_level == config.START_LEVEL:
+            current_start_level = get_last_level("training.log", config.START_LEVEL)
+        
+        print(f"Fortsetzen des Trainings erkannt. Starte bei Level: {current_start_level}")
+
+    train_env = make_vec_env(config.NUM_AGENTS, current_start_level, render_gui=config.RENDER_GUI)
 
     if os.path.isfile(config.MODEL_PATH):
         custom_objects = {
@@ -170,7 +225,7 @@ if __name__ == '__main__':
         reward_threshold=config.REWARD_THRESHOLD, 
         log_dir=config.OUTPUT_DIR,
         reward_solved=config.REWARD_SOLVED,
-        start_level=config.START_LEVEL,
+        start_level=current_start_level,
         max_level=config.MAX_LEVEL,
         unique=config.UNIQUE,
         partial_prob=config.PARTIAL_PROB,

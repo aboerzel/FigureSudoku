@@ -29,7 +29,12 @@ class CurriculumCallback(BaseCallback):
         if self.n_calls % self.check_freq == 0:
             # Hole Ergebnisse der letzten Episoden
             try:
-                x, y = ts2xy(load_results(self.log_dir), "timesteps")
+                results = load_results(self.log_dir)
+                if len(results) == 0:
+                    return True
+                
+                # 'r' ist die Spalte für Belohnungen in Monitor-Dateien
+                y = results['r'].values
                 num_episodes = len(y)
                 episodes_at_current_level = num_episodes - self.episodes_at_start_of_level
                 
@@ -37,7 +42,8 @@ class CurriculumCallback(BaseCallback):
                     last_rewards = y[-100:]
                     
                     # Schwellenwert für Erfolg (Reward >= self.reward_solved bedeutet Episode abgeschlossen)
-                    success_rate = np.mean([1 if r >= self.reward_solved else 0 for r in last_rewards])
+                    # Wir nutzen eine kleine Toleranz für Float-Vergleiche
+                    success_rate = np.mean([1 if r >= (self.reward_solved - 1e-3) else 0 for r in last_rewards])
                     
                     if self.verbose > 0:
                         print(f"Curriculum Check: Level {self.current_level} - Success Rate: {success_rate:.2f} (Window: 100, Episodes at Level: {episodes_at_current_level})", flush=True)
@@ -49,6 +55,7 @@ class CurriculumCallback(BaseCallback):
                             print(f"Success rate {success_rate:.2f} > {self.reward_threshold}. Increasing difficulty level to: {self.current_level}", flush=True)
                         
                         # Level in allen Umgebungen aktualisieren
+                        # reset_with_level setzt das neue Level; es wird beim nächsten automatischen Reset wirksam.
                         self.training_env.env_method("reset_with_level",
                                                      level=self.current_level,
                                                      unique=self.unique, 
