@@ -26,8 +26,9 @@ Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund 
 
 *   **Algorithmus:** `MaskablePPO` (Proximal Policy Optimization). Dank **Action Masking** lernt der Agent keine ungültigen Züge, was das Training massiv beschleunigt.
 *   **Neuronales Netz:** Ein **CNN (Convolutional Neural Network)** mit **Residual Blocks (ResNet)**. Dies erlaubt der KI, räumliche Zusammenhänge zwischen Reihen und Spalten wie ein menschliches Auge zu erfassen.
-*   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 10 (viele leere Felder), sobald der Agent eine Erfolgsquote von 98% erreicht.
-*   **Observation Space:** Ein 3D-Tensor (10 Kanäle), der One-Hot-kodiert die Positionen aller Formen und Farben repräsentiert.
+*   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine Erfolgsquote von über 98% erreicht. Dies ist über `REWARD_THRESHOLD` in der `config.py` einstellbar.
+*   **Hyperparameter-Optimierung:** Einsatz von `target_kl` zur Stabilisierung der Policy-Updates und ein `linear_schedule` für die Lernrate, um ein sauberes Konvergieren zu ermöglichen.
+*   **Observation Space:** Ein 3D-Tensor (10 Kanäle), der One-Hot-kodiert die Positionen aller Formen und Farben repräsentiert (flattened auf 160 Eingänge für die Kompatibilität).
 
 ---
 
@@ -45,6 +46,33 @@ FigureSudoku/
 ├── 📄 shapes.py             # Definitionen der Formen und Farben (Enums)
 └── 📁 output/               # Gespeicherte Modelle, Logs und Checkpoints
 ```
+
+---
+
+## ⚙️ Konfiguration (`config.py`)
+
+Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. Hier eine Übersicht der wichtigsten Parameter:
+
+### 🧩 Generator (Rätsel-Erstellung)
+*   `START_LEVEL`: Level, bei dem das Training beginnt (Anzahl leerer Felder). [Bereich: `1` bis `16`]
+*   `MAX_LEVEL`: Das Ziel-Level (höchste Schwierigkeit). [Bereich: `1` bis `16`, aktuell `12`]
+*   `UNIQUE`: Stellt sicher, dass jedes generierte Rätsel nur genau eine gültige Lösung hat. [Werte: `True`, `False`]
+*   `PARTIAL_PROB`: Wahrscheinlichkeit für das Auftreten von Feldern, bei denen nur die Form oder nur die Farbe vorgegeben ist. [Bereich: `0.0` bis `1.0`]
+*   `PARTIAL_MODE`: Modus für die Teilvorgaben (`0`: Aus, `1`: genau 2 Felder, `2`: 1-2 Felder zufällig). [Werte: `0`, `1`, `2`]
+
+### ⚡ Training & Hyperparameter
+*   `NUM_AGENTS`: Anzahl der parallelen Trainings-Umgebungen. [Bereich: `>= 1`]
+*   `REWARD_THRESHOLD`: Die benötigte Erfolgsquote (z.B. `0.90` für 90%), um in das nächste Level aufzusteigen. [Bereich: `0.0` bis `1.0`]
+*   `CHECK_FREQ`: Intervall (in Schritten), in dem die Erfolgsquote geprüft und Modelle zwischengespeichert werden. [Bereich: `>= 1`]
+*   `TOTAL_TIMESTEPS`: Die Gesamtdauer des Trainings (Gesamtzahl der Schritte über alle Agenten). [Bereich: `>= 1`]
+
+### 🏆 Belohnungssystem (Rewards)
+*   `REWARD_SOLVED`: Belohnung für ein komplett gelöstes Sudoku. [Typ: `Float`, empfohlen: `> 0`]
+*   `REWARD_VALID_MOVE_BASE`: Kleine Belohnung für jeden korrekten Setzvorgang. [Typ: `Float`, empfohlen: `> 0`]
+*   `REWARD_INVALID_MOVE`: Strafe für den Versuch, eine Figur entgegen der Regeln zu platzieren. [Typ: `Float`, empfohlen: `< 0`]
+
+### 🖼️ Visualisierung
+*   `RENDER_GUI`: Aktiviert die Live-Anzeige der Agenten während des Trainings. [Werte: `True`, `False`]
 
 ---
 
@@ -82,12 +110,13 @@ tensorboard --logdir output/SUDOKU/logs/train --port 6006
 
 Wenn du sehen möchtest, wie die trainierte KI ein Rätsel löst, kannst du die GUI nutzen:
 
-1.  Stelle sicher, dass ein trainiertes Modell im `output`-Ordner liegt.
+1.  Stelle sicher, dass ein trainiertes Modell im `output`-Ordner liegt (siehe `config.MODEL_PATH`).
 2.  Starte das Spiel:
 ```bash
-python sudoku_game.py --level 10
+python sudoku_game.py
 ```
-3.  Klicke auf **"New Game"** und dann auf **"Solve"**, um den Agenten beim Lösen zuzusehen.
+3.  Wähle den Schwierigkeitsgrad über den **"Level"-Slider** aus.
+4.  Klicke auf **"New Game"** und dann auf **"Solve"**, um den Agenten beim Lösen zuzusehen.
 
 ---
 

@@ -75,35 +75,36 @@ class SudokuGenerator:
                     # Nicht eindeutig -> Figur wieder einsetzen
                     init_state[r, c] = old_val
         
-        # Teilbelegungen hinzufügen (nur Form oder nur Farbe)
+        # Teilbelegungen hinzufügen (bereits gesetzte Felder reduzieren)
         if partial_prob > 0 and partial_mode > 0:
             if random.random() < partial_prob:
-                num_partial = 0
+                num_to_modify = 0
                 if partial_mode == 1:
-                    num_partial = 2
+                    num_to_modify = 2
                 elif partial_mode == 2:
-                    num_partial = random.randint(1, 2)
+                    num_to_modify = random.randint(1, 2)
                 
-                if num_partial > 0:
-                    # Finde Felder, die aktuell komplett leer sind
-                    empty_indices = []
-                    for r in range(self.rows):
-                        for c in range(self.cols):
-                            if init_state[r, c, 0] == Geometry.EMPTY.value and init_state[r, c, 1] == Color.EMPTY.value:
-                                empty_indices.append((r, c))
-                    
-                    if empty_indices:
-                        num_to_fill = min(num_partial, len(empty_indices))
-                        chosen_cells = random.sample(empty_indices, num_to_fill)
+            if num_to_modify > 0:
+                # Finde Felder, die aktuell vollständig belegt sind
+                filled_indices = []
+                for r in range(self.rows):
+                    for c in range(self.cols):
+                        if init_state[r, c, 0] != Geometry.EMPTY.value and init_state[r, c, 1] != Color.EMPTY.value:
+                            filled_indices.append((r, c))
+                
+                if filled_indices:
+                    # Wähle zufällig Felder aus den bereits gesetzten aus
+                    num_actual = min(num_to_modify, len(filled_indices))
+                    chosen_cells = random.sample(filled_indices, num_actual)
                         
-                        for r, c in chosen_cells:
-                            # Zufällig entweder Form oder Farbe behalten
-                            if random.choice([True, False]):
-                                # Nur Form behalten
-                                init_state[r, c] = [solved_state[r, c, 0], Color.EMPTY.value]
-                            else:
-                                # Nur Farbe behalten
-                                init_state[r, c] = [Geometry.EMPTY.value, solved_state[r, c, 1]]
+                    for r, c in chosen_cells:
+                        # Zufällig entweder Form oder Farbe verwerfen
+                        if random.choice([True, False]):
+                            # Farbe verwerfen -> Nur Form bleibt
+                            init_state[r, c, 1] = Color.EMPTY.value
+                        else:
+                            # Form verwerfen -> Nur Farbe bleibt
+                            init_state[r, c, 0] = Geometry.EMPTY.value
         
         return solved_state, init_state
 
