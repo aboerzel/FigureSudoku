@@ -43,7 +43,7 @@ class CurriculumCallback(BaseCallback):
                     
                     # Schwellenwert für Erfolg (Reward >= self.reward_solved bedeutet Episode abgeschlossen)
                     # Wir nutzen eine kleine Toleranz für Float-Vergleiche
-                    success_rate = np.mean([1 if r >= (self.reward_solved - 1e-3) else 0 for r in last_rewards])
+                    success_rate = np.mean(last_rewards >= (self.reward_solved - 1e-3))
                     
                     if self.verbose > 0:
                         print(f"Curriculum Check: Level {self.current_level} - Success Rate: {success_rate:.2f} (Window: 100, Episodes at Level: {episodes_at_current_level})", flush=True)

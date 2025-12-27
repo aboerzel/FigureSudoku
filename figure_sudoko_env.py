@@ -36,6 +36,7 @@ class FigureSudokuEnv(gym.Env):
         self.colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
         self.rows = len(self.geometries)
         self.cols = len(self.colors)
+        self.state_size = self.rows * self.cols
 
         if render_gui:
             self.gui = SudokuVisualizer(env_id=self.env_id, rows=self.rows, cols=self.cols, level=self.level)
@@ -190,7 +191,8 @@ class FigureSudokuEnv(gym.Env):
             self.perform_action(target_action)
 
             # Reward for a valid move
-            reward = self.reward_valid_move_base + (1.0 / (self.rows * self.cols)) 
+            empty_fields = FigureSudokuEnv.get_empty_fields(self.state)
+            reward = self.reward_valid_move_base * (1 + empty_fields / self.state_size)
 
             done = FigureSudokuEnv.is_done(self.state)
             if done:
