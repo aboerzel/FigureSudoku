@@ -1,5 +1,6 @@
 import math
 import random
+import time
 from threading import Thread
 from tkinter import *
 import tkinter as tk
@@ -19,10 +20,10 @@ class GridCell:
         self.width = width
         self.height = height
 
-        self.x = row * self.width
-        self.y = col * self.height
+        self.x = col * self.width
+        self.y = row * self.height
 
-        self.rect = board.create_rectangle(self.y, self.x, self.y + height, self.x + width, outline="black", fill="white")
+        self.rect = board.create_rectangle(self.x, self.y, self.x + width, self.y + height, outline="black", fill="white")
         self.board.tag_bind(self.rect, "<Button-1>", self.clicked)
 
         self.shape = None
@@ -67,8 +68,8 @@ class GridCell:
         ha = self.height - 2 * r
         a = 2 * ha / math.sqrt(3)
 
-        mx = self.width / 2 + self.y
-        my = self.height / 2 + self.x
+        mx = self.width / 2 + self.x
+        my = self.height / 2 + self.y
 
         ax = mx - a / 2
         ay = my + ha / 2
@@ -86,20 +87,20 @@ class GridCell:
 
     def create_circle(self, color='red'):
         r = 15
-        x1 = self.y + r
-        y1 = self.x + r
-        x2 = self.y + self.width - r
-        y2 = self.x + self.height - r
+        x1 = self.x + r
+        y1 = self.y + r
+        x2 = self.x + self.width - r
+        y2 = self.y + self.height - r
         shape = self.board.create_oval(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
     def create_quadrat(self, color='red'):
         r = 15
-        x1 = self.y + r
-        y1 = self.x + r
-        x2 = self.y + self.width - r
-        y2 = self.x + self.height - r
+        x1 = self.x + r
+        y1 = self.y + r
+        x2 = self.x + self.width - r
+        y2 = self.y + self.height - r
         shape = self.board.create_rectangle(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
@@ -109,8 +110,8 @@ class GridCell:
         a = (self.width - (2 * r)) / 2
         ri = math.sqrt(3) * a / 2
 
-        mx = self.width / 2 + self.y
-        my = self.height / 2 + self.x
+        mx = self.width / 2 + self.x
+        my = self.height / 2 + self.y
 
         fx = mx - a
         fy = my
@@ -206,7 +207,7 @@ class SudokuApp(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.close_window)
 
-        self.stop_train = False
+        self.stop_solve = False
         self.game_state = None
         self.obs = None
 
@@ -227,7 +228,7 @@ class SudokuApp(tk.Tk):
             Thread(target=self.solve, args=[]).start()
 
     def close_window(self):
-        self.stop_train = True
+        self.stop_solve = True
         self.destroy()
 
     def create_board(self):
@@ -263,44 +264,55 @@ class SudokuApp(tk.Tk):
         sidebar.pack(anchor=E, fill=Y, expand=False, side=RIGHT)
 
     def display_state(self, state):
+        self.after(0, self._display_state, state)
+
+    def _display_state(self, state):
         # state ist hier bereits (rows, cols, 2) direkt aus env.state
         for row in range(self.rows):
             for col in range(self.cols):
                 (geometry, color) = state[row][col]
                 self.grid[row][col].set_shape(geometry, color)
 
+    def _set_controls_state(self, state):
+        self.after(0, self.__set_controls_state, state)
+
+    def __set_controls_state(self, state):
+        controls = [
+            self.solve_button, self.reset_button, self.level_slider,
+            self.partial_prob_slider, self.partial_mode_slider
+        ]
+        for control in controls:
+            control.config(state=state)
+
     def solve(self):
-        self.solve_button.config(state=DISABLED)
-        self.reset_button.config(state=DISABLED)
-        self.level_slider.config(state=DISABLED)
-        self.partial_prob_slider.config(state=DISABLED)
-        self.partial_mode_slider.config(state=DISABLED)
-
+        self._set_controls_state(DISABLED)
         actions = []
+        done = False
 
-        for i in range(1, self.level+1):
-            if self.stop_train:
+        for move_count in range(1, self.level + 1):
+            if self.stop_solve:
                 break
+
             action_masks = self.env.action_masks()
-            action, _states = self.model.predict(self.obs, action_masks=action_masks, deterministic=True)
+            action, _ = self.model.predict(self.obs, action_masks=action_masks, deterministic=True)
             actions.append(action)
-            self.obs, reward, terminated, truncated, info = self.env.step(action)
+
+            self.obs, _, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
+
             self.game_state = self.env.state.copy()
             self.display_state(self.game_state)
+            time.sleep(0.5)
+
             if done:
-                print(f'Sudoku solved in {i} moves! {np.array(actions)}')
+                print(f'Sudoku solved in {move_count} moves! {np.array(actions)}')
                 break
         else:
             if not done:
                 print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
 
-        if not self.stop_train:
-            self.solve_button.config(state=NORMAL)
-            self.reset_button.config(state=NORMAL)
-            self.level_slider.config(state=NORMAL)
-            self.partial_prob_slider.config(state=NORMAL)
-            self.partial_mode_slider.config(state=NORMAL)
+        if not self.stop_solve:
+            self._set_controls_state(NORMAL)
 
 
 if __name__ == "__main__":
