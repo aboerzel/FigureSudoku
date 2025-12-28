@@ -7,7 +7,7 @@ from sb3_contrib import MaskablePPO
 import config
 
 from callbacks import SaveOnBestTrainingRewardCallback, CurriculumCallback
-from figure_sudoko_env import FigureSudokuEnv
+from figure_sudoku_env import FigureSudokuEnv
 
 from stable_baselines3.common.callbacks import CallbackList
 from stable_baselines3.common.monitor import Monitor
@@ -123,7 +123,10 @@ class SudokuCNN(BaseFeaturesExtractor):
         
         # Compute shape by doing one forward pass with reshaped dummy input
         with th.no_grad():
-            dummy_input = th.as_tensor(observation_space.sample()[None]).float()
+            sample_obs = observation_space.sample()
+            if isinstance(sample_obs, tuple): # Gymnasium sample can return info sometimes, but usually just the value
+                sample_obs = sample_obs[0]
+            dummy_input = th.as_tensor(sample_obs[None]).float()
             dummy_input = dummy_input.view(-1, 10, 4, 4)
             n_flatten = self.cnn(dummy_input).shape[1]
         

@@ -1,8 +1,7 @@
 import itertools
 import numpy as np
-import gym
-
-from gym.spaces import Box, Discrete
+import gymnasium as gym
+from gymnasium.spaces import Box, Discrete
 
 from shapes import Geometry, Color
 from sudoku_generator import SudokuGenerator
@@ -72,7 +71,9 @@ class FigureSudokuEnv(gym.Env):
         
         return obs.flatten()
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        
         self.current_step = 0
         self.episode += 1
         self._action_mask = None
@@ -93,9 +94,9 @@ class FigureSudokuEnv(gym.Env):
             self.gui.update_title(self.level)
             self.gui.display_state(self.state)
 
-        return self._get_obs()
+        return self._get_obs(), {}
 
-    def reset_with_level(self, level, unique=None, partial_prob=None, partial_mode=None):
+    def reset_with_level(self, level, unique=None, partial_prob=None, partial_mode=None, seed=None, options=None):
         self.level = level
         if unique is not None:
             self.unique = unique
@@ -103,7 +104,7 @@ class FigureSudokuEnv(gym.Env):
             self.partial_prob = partial_prob
         if partial_mode is not None:
             self.partial_mode = partial_mode
-        return self.reset()
+        return self.reset(seed=seed, options=options)
 
     def render(self, **kwargs):
         # update gui
@@ -217,9 +218,10 @@ class FigureSudokuEnv(gym.Env):
         mean_reward = np.mean(self.rewards)
 
         # An episode ends when no further move is possible or the maximum number of time steps is reached
-        episode_over = done or finished or (self.max_steps is not None and self.current_step >= self.max_steps)
+        terminated = done or finished
+        truncated = (self.max_steps is not None and self.current_step >= self.max_steps)
 
-        if episode_over and not done:
+        if (terminated or truncated) and not done:
             if self.gui is not None:
                 self.gui.show_failure()
 
@@ -227,12 +229,10 @@ class FigureSudokuEnv(gym.Env):
 
         if done:
             print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f} - DONE", flush=True)
-        elif episode_over:
+        elif (terminated or truncated):
             print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f}", flush=True)
-            if self.max_steps is not None and self.current_step >= self.max_steps:
-                info['time_limit_reached'] = True
 
-        return self._get_obs(), reward, episode_over, info
+        return self._get_obs(), reward, terminated, truncated, info
 
     def is_game_finished(self):
         # Wenn kein leeres Feld mehr da ist, ist das Spiel vorbei

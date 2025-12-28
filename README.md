@@ -25,6 +25,7 @@ Das **FigureSudoku** basiert auf einem 4x4-Gitter. Jedes Feld muss eine eindeuti
 
 Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund auf zu lernen:
 
+*   **Bibliotheken:** Nutzt **Stable Baselines3 (v2.0+)** und **Gymnasium**, die aktuelle Standard-Schnittstelle für Reinforcement Learning.
 *   **Algorithmus:** `MaskablePPO` (Proximal Policy Optimization). Dank **Action Masking** lernt der Agent keine ungültigen Züge, was das Training massiv beschleunigt.
 *   **CNN (Convolutional Neural Network) mit Residual Blocks (ResNet):** Da Sudoku-Regeln auf räumlichen Abhängigkeiten (Zeilen/Spalten) basieren, nutzt der Agent Faltungsschichten. ResNet-Blöcke helfen dabei, auch tieferliegende Abhängigkeiten ohne Informationsverlust zu lernen.
 *   **Observation Space:** Ein 3D-Tensor (10 Kanäle), der One-Hot-kodiert die Positionen aller Formen und Farben repräsentiert (flattened auf 160 Eingänge).
@@ -54,7 +55,7 @@ Der Lösungsprozess folgt einem klassischen RL-Zyklus:
 FigureSudoku/
 ├── 📄 config.py             # Zentrale Konfiguration (Hyperparameter, Level, etc.)
 ├── 📄 train.py              # Hauptskript zum Starten des KI-Trainings
-├── 📄 figure_sudoko_env.py  # Die Gymnasium-Umgebung (Logik & Rewards)
+├── 📄 figure_sudoku_env.py  # Die Gymnasium-Umgebung (Logik & Rewards)
 ├── 📄 sudoku_generator.py   # Backtracking-Algorithmus zur Rätsel-Generierung (mit optionaler Eindeutigkeitsprüfung)
 ├── 📄 sudoku_game.py        # Grafische Oberfläche zum Spielen & Evaluieren
 ├── 📄 visualizer.py         # Live-Visualisierung während des Trainings
@@ -101,11 +102,19 @@ Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. 
 ### Voraussetzungen:
 *   Python 3.8+
 *   Anaconda oder venv (empfohlen)
+*   CUDA-fähige GPU (für Training empfohlen, z.B. CUDA 11.8)
 
 ### Installation der Abhängigkeiten:
-```bash
-pip install -r requirements.txt
-```
+
+1.  **PyTorch mit CUDA-Support (Beispiel für CUDA 11.8):**
+    ```bash
+    pip install torch==2.3.1+cu118 torchvision==0.18.1+cu118 torchaudio==2.3.1+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+    ```
+
+2.  **Restliche Anforderungen:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ---
 

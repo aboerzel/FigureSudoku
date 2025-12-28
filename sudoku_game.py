@@ -7,7 +7,7 @@ import numpy as np
 from sb3_contrib import MaskablePPO
 
 import config
-from figure_sudoko_env import FigureSudokuEnv
+from figure_sudoku_env import FigureSudokuEnv
 from shapes import Geometry, Color
 
 class GridCell:
@@ -212,7 +212,7 @@ class SudokuApp(tk.Tk):
 
     def create_game(self):
         self.level = self.level_slider.get()
-        self.obs = self.env.reset_with_level(
+        self.obs, _info = self.env.reset_with_level(
             level=self.level,
             unique=True,
             partial_prob=self.partial_prob_slider.get(),
@@ -284,7 +284,8 @@ class SudokuApp(tk.Tk):
             action_masks = self.env.action_masks()
             action, _states = self.model.predict(self.obs, action_masks=action_masks, deterministic=True)
             actions.append(action)
-            self.obs, reward, done, info = self.env.step(action)
+            self.obs, reward, terminated, truncated, info = self.env.step(action)
+            done = terminated or truncated
             self.game_state = self.env.state.copy()
             self.display_state(self.game_state)
             if done:
