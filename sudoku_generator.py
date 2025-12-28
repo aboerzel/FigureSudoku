@@ -76,35 +76,31 @@ class SudokuGenerator:
                     init_state[r, c] = old_val
         
         # Teilbelegungen hinzufügen (bereits gesetzte Felder reduzieren)
-        if partial_prob > 0 and partial_mode > 0:
-            num_to_modify = 0
+        if partial_prob > 0:
             if random.random() < partial_prob:
-                if partial_mode == 1:
-                    num_to_modify = 2
-                elif partial_mode == 2:
-                    num_to_modify = random.randint(1, 2)
+                num_to_modify = partial_mode
                 
-            if num_to_modify > 0:
-                # Finde Felder, die aktuell vollständig belegt sind
-                filled_indices = []
-                for r in range(self.rows):
-                    for c in range(self.cols):
-                        if init_state[r, c, 0] != Geometry.EMPTY.value and init_state[r, c, 1] != Color.EMPTY.value:
-                            filled_indices.append((r, c))
-                
-                if filled_indices:
-                    # Wähle zufällig Felder aus den bereits gesetzten aus
-                    num_actual = min(num_to_modify, len(filled_indices))
-                    chosen_cells = random.sample(filled_indices, num_actual)
-                        
-                    for r, c in chosen_cells:
-                        # Zufällig entweder Form oder Farbe verwerfen
-                        if random.choice([True, False]):
-                            # Farbe verwerfen -> Nur Form bleibt
-                            init_state[r, c, 1] = Color.EMPTY.value
-                        else:
-                            # Form verwerfen -> Nur Farbe bleibt
-                            init_state[r, c, 0] = Geometry.EMPTY.value
+                if num_to_modify > 0:
+                    # Finde Felder, die aktuell vollständig belegt sind
+                    filled_indices = []
+                    for r in range(self.rows):
+                        for c in range(self.cols):
+                            if init_state[r, c, 0] != Geometry.EMPTY.value and init_state[r, c, 1] != Color.EMPTY.value:
+                                filled_indices.append((r, c))
+                    
+                    if filled_indices:
+                        # Wähle zufällig Felder aus den bereits gesetzten aus
+                        num_actual = min(num_to_modify, len(filled_indices))
+                        chosen_cells = random.sample(filled_indices, num_actual)
+                            
+                        for r, c in chosen_cells:
+                            # Zufällig entweder Form oder Farbe verwerfen
+                            if random.choice([True, False]):
+                                # Farbe verwerfen -> Nur Form bleibt
+                                init_state[r, c, 1] = Color.EMPTY.value
+                            else:
+                                # Form verwerfen -> Nur Farbe bleibt
+                                init_state[r, c, 0] = Geometry.EMPTY.value
         
         return solved_state, init_state
 

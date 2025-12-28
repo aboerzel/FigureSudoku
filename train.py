@@ -18,11 +18,16 @@ from typing import Callable
 import re
 
 
-def get_last_level(log_path: str, default_level: int = 1) -> int:
+def get_last_level(log_path: str, default_level: int = None) -> int:
     """
     Versucht das zuletzt erreichte Level aus der Log-Datei zu extrahieren.
     Liest die Datei speichereffizient von hinten und unterstützt UTF-8 und UTF-16.
     """
+    if default_level is not None:
+        return default_level
+
+    default_level = 1
+
     if not os.path.exists(log_path):
         return default_level
     

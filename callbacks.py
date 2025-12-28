@@ -12,7 +12,7 @@ class CurriculumCallback(BaseCallback):
     based on the success rate.
     """
     def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, reward_solved: float, start_level: int = 1, max_level: int = 16, 
-                 unique: bool = False, partial_prob: float = 0.0, partial_mode: int = 0, verbose: int = 1):
+                 unique: bool = False, partial_prob: float = 0.0, partial_mode: int = 1, verbose: int = 1):
         super(CurriculumCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.reward_threshold = reward_threshold

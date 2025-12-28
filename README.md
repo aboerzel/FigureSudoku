@@ -31,7 +31,7 @@ Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund 
 *   **Action Space:** Insgesamt 256 diskrete Aktionen. Jede Aktion entspricht der Kombination aus einer bestimmten Figur (16 Möglichkeiten) und einem Zielfeld (16 Felder).
 *   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, werden ungültige Züge (z.B. doppelte Farbe in einer Reihe) maskiert. Der Agent wählt nur aus den verbleibenden validen Optionen.
 *   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine definierte Erfolgsquote (einstellbar über `REWARD_THRESHOLD`) erreicht.
-*   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle und setzt das Curriculum-Level basierend auf dem letzten Log-Eintrag in der in `config.py` definierten Log-Datei (`LOG_FILE_PATH`) fort.
+*   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle. Das Start-Level wird primär über `START_LEVEL` in der `config.py` gesteuert. Ist dieser Wert auf `None` gesetzt, wird das Level automatisch aus dem letzten Log-Eintrag (`LOG_FILE_PATH`) ermittelt (mit Fallback auf Level 1).
 *   **Backtracking-Generator:** Die Rätsel werden mithilfe eines Backtracking-Algorithmus generiert, der sicherstellt, dass die Aufgaben lösbar sind und optional eine eindeutige Lösung besitzen.
 
 ---
@@ -70,14 +70,14 @@ FigureSudoku/
 Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. Hier eine Übersicht der wichtigsten Parameter:
 
 ### 🧩 Generator (Rätsel-Erstellung)
-*   `START_LEVEL`: Level, bei dem das Training beginnt (Anzahl leere Felder bzw. Felder ohne vollständige Figur). [Bereich: `1` bis `16`]
+*   `START_LEVEL`: Bestimmt das Start-Level für das Training. Wenn ein Wert (1-16) angegeben ist, wird dieser fest verwendet (manuelles Überschreiben). Ist `None` gesetzt, wird das Level beim Fortsetzen eines Trainings automatisch aus der Log-Datei ermittelt (Fallback: Level 1). [Bereich: `1` bis `16` oder `None`]
 *   `MAX_LEVEL`: Das Ziel-Level (höchste Schwierigkeit). [Bereich: `1` bis `16`, aktuell `12`]
 *   `UNIQUE`: Stellt sicher, dass jedes generierte Rätsel nur genau eine gültige Lösung hat. [Werte: `True`, `False`]
 *   `PARTIAL_PROB`: Wahrscheinlichkeit (`0.0` bis `1.0`), dass in einem Rätsel Teilvorgaben (nur Farbe oder nur Form) generiert werden. Erhöht die Komplexität, da der Agent fehlende Attribute ergänzen muss.
-*   `PARTIAL_MODE`: Bestimmt die Anzahl der Teilvorgaben pro Rätsel:
-    *   `0`: Deaktiviert.
-    *   `1`: Genau 2 Felder werden als Teilvorgaben markiert.
-    *   `2`: Zufällig 1 bis 2 Felder werden als Teilvorgaben markiert.
+*   `PARTIAL_MODE`: Bestimmt die Anzahl der Teilvorgaben pro Rätsel, falls eine Teilbelegung stattfindet (gesteuert durch `PARTIAL_PROB`):
+    *   `1`: Ein Feld wird teilbelegt.
+    *   `2`: Zwei Felder werden teilbelegt.
+    *   `3`: Drei Felder werden teilbelegt.
 
 ### ⚡ Training & Hyperparameter
 *   `NUM_AGENTS`: Anzahl der parallelen Trainings-Umgebungen. [Bereich: `>= 1`]

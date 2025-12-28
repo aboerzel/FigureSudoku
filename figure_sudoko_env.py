@@ -11,7 +11,7 @@ from visualizer import SudokuVisualizer
 
 class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, env_id=0, level=1, max_steps=None, render_gui=False, unique=False, partial_prob=0.0, partial_mode=0,
+    def __init__(self, env_id=0, level=1, max_steps=None, render_gui=False, unique=False, partial_prob=0.0, partial_mode=1,
                  reward_solved=10.0, reward_valid_move_base=0.1, reward_invalid_move=-0.5):
         super(FigureSudokuEnv, self).__init__()
         self.env_id = env_id
