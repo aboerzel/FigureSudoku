@@ -4,5 +4,3 @@ __pycache__
 output
 logs
 /.ipynb_checkpoints/
-/output/SUDOKU/training.log
-training.log

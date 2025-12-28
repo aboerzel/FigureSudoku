@@ -31,7 +31,7 @@ Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund 
 *   **Action Space:** Insgesamt 256 diskrete Aktionen. Jede Aktion entspricht der Kombination aus einer bestimmten Figur (16 Möglichkeiten) und einem Zielfeld (16 Felder).
 *   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, werden ungültige Züge (z.B. doppelte Farbe in einer Reihe) maskiert. Der Agent wählt nur aus den verbleibenden validen Optionen.
 *   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine definierte Erfolgsquote (einstellbar über `REWARD_THRESHOLD`) erreicht.
-*   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle und setzt das Curriculum-Level basierend auf dem letzten Log-Eintrag in `training.log` fort.
+*   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle und setzt das Curriculum-Level basierend auf dem letzten Log-Eintrag in der in `config.py` definierten Log-Datei (`LOG_FILE_PATH`) fort.
 *   **Backtracking-Generator:** Die Rätsel werden mithilfe eines Backtracking-Algorithmus generiert, der sicherstellt, dass die Aufgaben lösbar sind und optional eine eindeutige Lösung besitzen.
 
 ---
@@ -114,12 +114,13 @@ pip install -r requirements.txt
 Um den Agenten zu trainieren, führe einfach die `train.py` aus. Die Konfiguration kann in der `config.py` angepasst werden (z.B. `NUM_AGENTS` für Parallelisierung).
 
 ```bash
-python train.py
+python train.py | Tee-Object -FilePath output/SUDOKU/training.log
 ```
 
 ### Monitoring mit TensorBoard:
-Während das Training läuft, kannst du den Fortschritt (Erfolgsquote, Reward) live verfolgen:
+Während das Training läuft, kannst du den Fortschritt (Erfolgsquote, Reward) live verfolgen. Der Pfad ist in `config.TENSORBOARD_TRAIN_LOG` definiert:
 ```bash
+# Beispiel (standardmäßig):
 tensorboard --logdir output/SUDOKU/logs/train --port 6006
 ```
 Öffne dann `http://localhost:6006` in deinem Browser.

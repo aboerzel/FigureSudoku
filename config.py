@@ -4,6 +4,7 @@ TRAIN_NAME = f"SUDOKU"
 
 OUTPUT_DIR = os.path.join("output", TRAIN_NAME)
 TENSORBOARD_TRAIN_LOG = os.path.join(OUTPUT_DIR, "logs", "train")
+LOG_FILE_PATH = os.path.join(OUTPUT_DIR, "training.log")
 
 MODEL_NAME = "sudoku.zip"
 CHECKPOINT_NAME = "checkpoint"

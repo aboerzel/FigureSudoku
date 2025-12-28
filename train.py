@@ -169,13 +169,12 @@ def make_vec_env(num_envs, level, render_gui=False):
 
 
 if __name__ == '__main__':
-
     # PPO Hyperparameters
-    initial_learning_rate = 1e-4 
+    initial_learning_rate = 5e-5 
     n_steps = 4096 
     batch_size = 1024 
     n_epochs = 5      # Reduced from 10 to improve stability and speed up iterations
-    target_kl = 0.02  # Added to prevent too large policy updates (the "dips")
+    target_kl = 0.05  # Increased from 0.02 to allow for more policy updates before early stopping
     ent_coef = 0.01 
     vf_coef = 0.5
     gamma = 0.995 
@@ -191,12 +190,8 @@ if __name__ == '__main__':
 
     # Versuche das letzte Level aus dem Log zu laden, falls wir ein Modell fortsetzen
     current_start_level = config.START_LEVEL
-    log_file_path = os.path.join(config.OUTPUT_DIR, "training.log")
     if os.path.isfile(config.MODEL_PATH):
-        current_start_level = get_last_level(log_file_path, config.START_LEVEL)
-        # Falls im Output-Dir nichts war, im Root schauen
-        if current_start_level == config.START_LEVEL:
-            current_start_level = get_last_level("training.log", config.START_LEVEL)
+        current_start_level = get_last_level(config.LOG_FILE_PATH, config.START_LEVEL)
         
         print(f"Fortsetzen des Trainings erkannt. Starte bei Level: {current_start_level}")
 
@@ -214,9 +209,9 @@ if __name__ == '__main__':
             'vf_coef': vf_coef,
             'policy_kwargs': policy_kwargs
         }
-        model = MaskablePPO.load(config.MODEL_PATH, env=train_env, custom_objects=custom_objects, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = MaskablePPO.load(config.MODEL_PATH, env=train_env, custom_objects=custom_objects, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda", verbose=1)
     else:
-        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, n_epochs=n_epochs, target_kl=target_kl, learning_rate=lr_schedule, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda")
+        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, n_epochs=n_epochs, target_kl=target_kl, learning_rate=lr_schedule, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda", verbose=1)
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=config.CHECK_FREQ, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME, verbose=1)
 
