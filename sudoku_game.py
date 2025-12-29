@@ -177,7 +177,7 @@ class SudokuApp(tk.Tk):
 
         self.model = model
         self.env = env
-        self.level = 3
+        self.level = 10
 
         self.rows = env.rows
         self.cols = env.cols
@@ -217,7 +217,7 @@ class SudokuApp(tk.Tk):
         self.obs, _info = self.env.reset_with_level(
             level=self.level,
             unique=True,
-            partial_prob=self.partial_prob_slider.get(),
+            partial_prob=self.partial_prob_slider.get() / 100.0,
             partial_mode=self.partial_mode_slider.get()
         )
         self.game_state = self.env.state.copy()
@@ -234,6 +234,15 @@ class SudokuApp(tk.Tk):
 
     def set_status(self, text):
         self.after(0, lambda: self.status_label.config(text=f" Status: {text}"))
+
+    def update_partial_prob_label(self, value):
+        self.partial_prob_label.config(text=f"Häufigkeit: {value}%")
+
+    def update_level_label(self, value):
+        self.level_label.config(text=f"Level: {value}")
+
+    def update_partial_mode_label(self, value):
+        self.partial_mode_label.config(text=f"Anzahl Felder: {value}")
 
     def create_board(self):
         # Main container
@@ -274,18 +283,25 @@ class SudokuApp(tk.Tk):
         # Sliders with labels
         slider_style = {"bg": self.bg_sidebar, "fg": self.fg_sidebar, "highlightthickness": 0, "orient": HORIZONTAL, "troughcolor": "#555555", "length": 160}
 
-        Label(sidebar, text="Level:", bg=self.bg_sidebar, fg=self.fg_sidebar).pack(pady=(10, 0))
-        self.level_slider = Scale(sidebar, from_=1, to=self.rows * self.cols, **slider_style)
+        Label(sidebar, text="KONFIGURATION", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 10, "bold")).pack(pady=(20, 5))
+
+        self.level_label = Label(sidebar, text=f"Level: {self.level}", bg=self.bg_sidebar, fg=self.fg_sidebar)
+        self.level_label.pack(pady=(5, 0))
+        self.level_slider = Scale(sidebar, from_=1, to=self.rows * self.cols, showvalue=0, command=self.update_level_label, **slider_style)
         self.level_slider.set(self.level)
         self.level_slider.pack(padx=10, pady=(0, 5))
 
-        Label(sidebar, text="Partial Prob:", bg=self.bg_sidebar, fg=self.fg_sidebar).pack(pady=(5, 0))
-        self.partial_prob_slider = Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, **slider_style)
-        self.partial_prob_slider.set(config.PARTIAL_PROB)
+        Label(sidebar, text="TEILBELEGUNG", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 9, "bold")).pack(pady=(15, 5))
+
+        self.partial_prob_label = Label(sidebar, text=f"Häufigkeit: {int(config.PARTIAL_PROB * 100)}%", bg=self.bg_sidebar, fg=self.fg_sidebar)
+        self.partial_prob_label.pack(pady=(5, 0))
+        self.partial_prob_slider = Scale(sidebar, from_=0, to=100, resolution=1, showvalue=0, command=self.update_partial_prob_label, **slider_style)
+        self.partial_prob_slider.set(int(config.PARTIAL_PROB * 100))
         self.partial_prob_slider.pack(padx=10, pady=(0, 5))
 
-        Label(sidebar, text="Partial Mode:", bg=self.bg_sidebar, fg=self.fg_sidebar).pack(pady=(5, 0))
-        self.partial_mode_slider = Scale(sidebar, from_=0, to=2, **slider_style)
+        self.partial_mode_label = Label(sidebar, text=f"Anzahl Felder: {config.PARTIAL_MODE}", bg=self.bg_sidebar, fg=self.fg_sidebar)
+        self.partial_mode_label.pack(pady=(5, 0))
+        self.partial_mode_slider = Scale(sidebar, from_=0, to=2, showvalue=0, command=self.update_partial_mode_label, **slider_style)
         self.partial_mode_slider.set(config.PARTIAL_MODE)
         self.partial_mode_slider.pack(padx=10, pady=(0, 10))
 
