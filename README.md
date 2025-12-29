@@ -30,7 +30,7 @@ Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund 
 *   **CNN (Convolutional Neural Network) mit Residual Blocks (ResNet):** Da Sudoku-Regeln auf räumlichen Abhängigkeiten (Zeilen/Spalten) basieren, nutzt der Agent Faltungsschichten. ResNet-Blöcke helfen dabei, auch tieferliegende Abhängigkeiten ohne Informationsverlust zu lernen.
 *   **Observation Space:** Ein 3D-Tensor (10 Kanäle), der One-Hot-kodiert die Positionen aller Formen und Farben repräsentiert (flattened auf 160 Eingänge).
 *   **Action Space:** Insgesamt 256 diskrete Aktionen. Jede Aktion entspricht der Kombination aus einer bestimmten Figur (16 Möglichkeiten) und einem Zielfeld (16 Felder).
-*   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, werden ungültige Züge (z.B. doppelte Farbe in einer Reihe) maskiert. Der Agent wählt nur aus den verbleibenden validen Optionen.
+*   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, nutzt das Projekt **Action Masking**. Dies verhindert, dass der Agent ungültige Züge (z.B. doppelte Farbe in einer Reihe) überhaupt in Erwägung zieht. Dies reduziert den Suchraum dramatisch und stabilisiert das Training (siehe Abschnitt [Action Masking](#-action-masking-detailerklärung)).
 *   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine definierte Erfolgsquote (einstellbar über `REWARD_THRESHOLD`) erreicht.
 *   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle. Das Start-Level wird primär über `START_LEVEL` in der `config.py` gesteuert. Ist dieser Wert auf `None` gesetzt, wird das Level automatisch aus dem letzten Log-Eintrag (`LOG_FILE_PATH`) ermittelt (mit Fallback auf Level 1).
 *   **Backtracking-Generator:** Die Rätsel werden mithilfe eines Backtracking-Algorithmus generiert, der sicherstellt, dass die Aufgaben lösbar sind und optional eine eindeutige Lösung besitzen.
@@ -46,6 +46,26 @@ Der Lösungsprozess folgt einem klassischen RL-Zyklus:
 3.  **Entscheidung:** Das neuronale Netz bewertet die validen Aktionen und wählt die Erfolgversprechendste aus.
 4.  **Belohnung:** Für jeden korrekten Zug erhält der Agent einen kleinen Reward. Das Lösen des gesamten Rätsels gibt einen großen Bonus.
 5.  **Lernen:** Über PPO optimiert der Agent seine Strategie, um die kumulierte Belohnung zu maximieren.
+
+---
+
+## 🛡️ Action Masking (Detailerklärung)
+
+Action Masking ist eine entscheidende Technik für die Effizienz dieses Agenten. Da der Action Space mit **256 Aktionen** sehr groß ist, aber in jedem Spielzustand oft nur **weniger als 5%** der Züge legal sind, würde ein Standard-RL-Agent extrem lange brauchen, um allein die Grundregeln (z.B. "nicht zweimal Rot in eine Spalte") durch reines Ausprobieren (*Trial & Error*) zu lernen.
+
+### Wie es funktioniert:
+Bevor der Agent eine Aktion auswählt, berechnet die Umgebung (`FigureSudokuEnv.action_masks()`) einen binären Vektor (die Maske). Für jede der 256 Aktionen wird geprüft:
+
+1.  **Feldbelegung:** Ist das Zielfeld bereits mit einer anderen Figur belegt? (Oder passt die gewählte Figur zu einer bestehenden Teilvorgabe?)
+2.  **Figur-Verfügbarkeit:** Wurde die Kombination aus Form und Farbe (z.B. "Blauer Kreis") bereits an einer anderen Stelle im Gitter platziert?
+3.  **Sudoku-Constraints (Reihe/Spalte):** Existiert die gewählte Form oder die gewählte Farbe bereits in der Ziel-Reihe oder Ziel-Spalte?
+
+### Warum MaskablePPO?
+In einem Standard-PPO-Algorithmus würde der Agent auch ungültige Aktionen wählen, eine negative Belohnung erhalten und dann mühsam lernen, diese Aktionen zu vermeiden.
+**MaskablePPO** hingegen nutzt die Maske direkt in der Wahrscheinlichkeitsverteilung der Policy:
+*   Ungültige Aktionen erhalten eine Wahrscheinlichkeit von **exakt Null**.
+*   Der Agent "sieht" während der Entscheidungsfindung nur die legalen Optionen.
+*   **Vorteil:** Das neuronale Netz muss keine Kapazität darauf verschwenden, die harten Regeln des Spiels auswendig zu lernen, sondern kann sich sofort auf die **Lösungsstrategie** konzentrieren.
 
 ---
 
@@ -88,11 +108,25 @@ Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. 
 *   `MAX_TIMESTEPS`: Maximale Anzahl an Schritten pro Episode. Verhindert Endlosschleifen bei unlösbaren Zuständen.
 
 ### 🏆 Belohnungssystem (Rewards)
-*   `REWARD_SOLVED`: Belohnung für ein komplett gelöstes Sudoku. [Typ: `Float`, empfohlen: `> 0`]
-*   `REWARD_VALID_MOVE_BASE`: Basisbelohnung für einen korrekten Setzvorgang. Die tatsächliche Belohnung ist dynamisch und wird mit der Anzahl der leeren Felder skaliert: `base * (1 + empty_fields / state_size)`. Dies fördert gezielte Züge auf einem leeren Board.
-*   `REWARD_INVALID_MOVE`: Strafe für den Versuch, eine Figur entgegen der Regeln zu platzieren. [Typ: `Float`, empfohlen: `< 0`]
 
-### 🖼️ Visualisierung
+Das Belohnungssystem ist darauf ausgelegt, den Agenten zu einem effizienten und regelkonformen Lösungsweg zu führen. Es besteht aus drei Hauptkomponenten:
+
+1.  **`REWARD_SOLVED` (Aktuell: `10.0`)**:
+    *   **Zweck:** Der "Heilige Gral". Dies ist die maximale Belohnung, die der Agent erhält, wenn das gesamte Gitter regelkonform gefüllt ist.
+    *   **Warum dieser Wert?** Er muss deutlich höher sein als die Summe der Einzelzüge, damit der Agent das übergeordnete Ziel (das Lösen) priorisiert. Selbst auf dem höchsten Schwierigkeitsgrad (Level 16, d.h. 16 leere Felder) beträgt die Summe aller validen Einzelzug-Belohnungen nur ca. `2.45`, was bedeutet, dass der `REWARD_SOLVED` (10.0) immer noch mehr als das Vierfache davon wert ist. Dies stellt sicher, dass der Agent auch bei komplexen Rätseln (Level 12, 13+) stets motiviert bleibt, das Rätsel vollständig zu lösen.
+
+2.  **`REWARD_VALID_MOVE_BASE` (Aktuell: `0.1`)**:
+    *   **Zweck:** Belohnung für jeden korrekten Zug.
+    *   **Dynamische Skalierung:** Die tatsächliche Belohnung berechnet sich als: `base * (1 + leere_felder / gitter_größe)`.
+    *   **Warum diese Logik?** Durch die Skalierung erhält der Agent für Züge auf einem leeren Board (wo es viele Möglichkeiten gibt) eine höhere Belohnung als für Züge auf einem fast vollen Board. Dies motiviert den Agenten, "schwierige" Entscheidungen frühzeitig korrekt zu treffen. Der Basiswert von `0.1` ist klein genug, um "Reward Shaping" zu ermöglichen, ohne das Endziel zu überschatten.
+
+3.  **`REWARD_INVALID_MOVE` (Aktuell: `-0.5`)**:
+    *   **Zweck:** Bestrafung für illegale Züge (obwohl diese durch Action Masking weitgehend verhindert werden).
+    *   **Warum dieser Wert?** Die Strafe ist moderat negativ gewählt. Da der Agent `MaskablePPO` nutzt, trifft er selten auf ungültige Züge im Action Space, aber die Strafe dient als zusätzliche Absicherung für die Lernstabilität der Policy.
+
+---
+
+## 🖼️ Visualisierung
 *   `RENDER_GUI`: Aktiviert die Live-Anzeige der Agenten während des Trainings. [Werte: `True`, `False`]
 
 ---
