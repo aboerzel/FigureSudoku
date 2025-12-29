@@ -302,7 +302,7 @@ class SudokuApp(tk.Tk):
 
             self.game_state = self.env.state.copy()
             self.display_state(self.game_state)
-            time.sleep(0.5)
+            time.sleep(0.2)
 
             if done:
                 print(f'Sudoku solved in {move_count} moves! {np.array(actions)}')
