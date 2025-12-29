@@ -4,6 +4,7 @@ import time
 from threading import Thread
 from tkinter import *
 import tkinter as tk
+from tkinter import messagebox
 import numpy as np
 from sb3_contrib import MaskablePPO
 
@@ -30,17 +31,6 @@ class GridCell:
 
     def clicked(self, event):
         return
-
-        if self.shape is None:
-            #self.board.itemconfig(self.rect, fill='green', outline='red')
-            shape = self.get_random_shape()
-            color = self.get_random_color()
-            self.set_shape(shape, color)
-        else:
-            #self.board.itemconfig(self.rect, fill='orange', outline='gray')
-            self.clear()
-
-        print(f'Cell {self.row + 1} {self.col + 1} clicked.')
 
     def set_shape(self, geometry, color):
         self.clear()
@@ -197,10 +187,6 @@ class SudokuApp(tk.Tk):
         self.title('Figure Sudoku')
         self.resizable(False, False)
 
-        # configure the grid
-        # self.columnconfigure(0, weight=1)
-        # self.columnconfigure(1, weight=3)
-
         self.grid = np.empty((self.rows, self.cols), dtype=object)
 
         self.create_board()
@@ -224,7 +210,6 @@ class SudokuApp(tk.Tk):
 
     def solve_game(self):
         if self.game_state is not None:
-            #self.solve(self.game_state)
             Thread(target=self.solve, args=[]).start()
 
     def close_window(self):
@@ -284,10 +269,13 @@ class SudokuApp(tk.Tk):
         for control in controls:
             control.config(state=state)
 
+    def show_info(self, title, message):
+        self.after(0, lambda: messagebox.showinfo(title, message))
+
     def solve(self):
         self._set_controls_state(DISABLED)
         actions = []
-        done = False
+        solved = False
 
         for move_count in range(1, self.level + 1):
             if self.stop_solve:
@@ -298,20 +286,26 @@ class SudokuApp(tk.Tk):
             actions.append(action)
 
             self.obs, _, terminated, truncated, _ = self.env.step(action)
-            done = terminated or truncated
-
+            
+            # Das Sudoku ist gelöst, wenn FigureSudokuEnv.is_done wahr zurückgibt.
+            # terminated kann auch wahr sein, wenn keine Züge mehr möglich sind (Fehlschlag).
+            solved = FigureSudokuEnv.is_done(self.env.state)
+            
             self.game_state = self.env.state.copy()
             self.display_state(self.game_state)
             time.sleep(0.2)
 
-            if done:
-                print(f'Sudoku solved in {move_count} moves! {np.array(actions)}')
+            if terminated or truncated:
                 break
-        else:
-            if not done:
-                print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
 
         if not self.stop_solve:
+            if solved:
+                print(f'Sudoku solved in {len(actions)} moves! {np.array(actions)}')
+                #self.show_info("Gelöst", f"Sudoku wurde in {len(actions)} Zügen gelöst!")
+            else:
+                print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
+                self.show_info("Fehler", f"Sudoku konnte nicht innerhalb von {self.level} Zügen gelöst werden!")
+            
             self._set_controls_state(NORMAL)
 
 
