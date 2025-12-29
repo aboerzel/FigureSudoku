@@ -24,7 +24,9 @@ class GridCell:
         self.x = col * self.width
         self.y = row * self.height
 
-        self.rect = board.create_rectangle(self.x, self.y, self.x + width, self.y + height, outline="black", fill="white")
+        # Schachbrett-Hintergrund für bessere Orientierung
+        bg_color = "#f9f9f9" if (row + col) % 2 == 0 else "#ffffff"
+        self.rect = board.create_rectangle(self.x, self.y, self.x + width, self.y + height, outline="#cccccc", fill=bg_color, width=1)
         self.board.tag_bind(self.rect, "<Button-1>", self.clicked)
 
         self.shape = None
@@ -34,8 +36,9 @@ class GridCell:
 
     def set_shape(self, geometry, color):
         self.clear()
-        # Reset background to white
-        self.board.itemconfig(self.rect, fill='white')
+        # Reset background
+        bg_color = "#f9f9f9" if (self.row + self.col) % 2 == 0 else "#ffffff"
+        self.board.itemconfig(self.rect, fill=bg_color)
         
         if geometry != Geometry.EMPTY.value and color != Color.EMPTY.value:
             # Full figure: normal display
@@ -54,8 +57,8 @@ class GridCell:
             self.shape = None
 
     def create_triangle(self, color='red'):
-        r = 15
-        ha = self.height - 2 * r
+        padding = self.height * 0.2
+        ha = self.height - 2 * padding
         a = 2 * ha / math.sqrt(3)
 
         mx = self.width / 2 + self.x
@@ -76,28 +79,28 @@ class GridCell:
         return shape
 
     def create_circle(self, color='red'):
-        r = 15
-        x1 = self.x + r
-        y1 = self.y + r
-        x2 = self.x + self.width - r
-        y2 = self.y + self.height - r
+        padding = self.height * 0.2
+        x1 = self.x + padding
+        y1 = self.y + padding
+        x2 = self.x + self.width - padding
+        y2 = self.y + self.height - padding
         shape = self.board.create_oval(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
     def create_quadrat(self, color='red'):
-        r = 15
-        x1 = self.x + r
-        y1 = self.y + r
-        x2 = self.x + self.width - r
-        y2 = self.y + self.height - r
+        padding = self.height * 0.2
+        x1 = self.x + padding
+        y1 = self.y + padding
+        x2 = self.x + self.width - padding
+        y2 = self.y + self.height - padding
         shape = self.board.create_rectangle(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
     def create_hexagon(self, color='red'):
-        r = 15
-        a = (self.width - (2 * r)) / 2
+        padding = self.height * 0.2
+        a = (self.width - (2 * padding)) / 2
         ri = math.sqrt(3) * a / 2
 
         mx = self.width / 2 + self.x
@@ -178,14 +181,25 @@ class SudokuApp(tk.Tk):
 
         self.rows = env.rows
         self.cols = env.cols
-        self.cell_width = self.cell_height = 82
+        
+        self.sidebar_width = 200
+        # Mindesthöhe für die Sidebar (ca. 450px) sicherstellen
+        self.height = max(450, 30) + 30 # Platz für Sidebar + Statusleiste
+        # Da wir wollen, dass das Board die Höhe der Sidebar ausfüllt:
+        available_board_height = max(450, 450) # Die Höhe der Sidebar ohne Statusleiste
+        self.cell_height = self.cell_width = available_board_height // self.rows
 
-        self.width = self.cell_width * self.cols + 120
-        self.height = self.cell_height * self.rows
+        self.height = (self.cell_height * self.rows) + 30
+        self.width = self.cell_width * self.cols + self.sidebar_width
 
         self.geometry(f"{self.width}x{self.height}")
         self.title('Figure Sudoku')
         self.resizable(False, False)
+
+        # Style colors
+        self.bg_sidebar = "#333333"
+        self.fg_sidebar = "#ffffff"
+        self.accent_color = "#4a90e2"
 
         self.grid = np.empty((self.rows, self.cols), dtype=object)
 
@@ -198,6 +212,7 @@ class SudokuApp(tk.Tk):
         self.obs = None
 
     def create_game(self):
+        self.set_status("Generiere Spiel...")
         self.level = self.level_slider.get()
         self.obs, _info = self.env.reset_with_level(
             level=self.level,
@@ -207,6 +222,7 @@ class SudokuApp(tk.Tk):
         )
         self.game_state = self.env.state.copy()
         self.display_state(self.game_state)
+        self.set_status("Bereit")
 
     def solve_game(self):
         if self.game_state is not None:
@@ -216,37 +232,68 @@ class SudokuApp(tk.Tk):
         self.stop_solve = True
         self.destroy()
 
-    def create_board(self):
+    def set_status(self, text):
+        self.after(0, lambda: self.status_label.config(text=f" Status: {text}"))
 
-        board = Canvas(self)
+    def create_board(self):
+        # Main container
+        main_container = Frame(self)
+        main_container.pack(fill=BOTH, expand=True)
+
+        # Center Board Canvas container
+        board_container = Frame(main_container, width=self.cell_width * self.cols)
+        board_container.pack(side=LEFT, fill=BOTH, expand=True)
+
+        # Board Canvas - füllt den board_container aus
+        canvas_width = self.cell_width * self.cols
+        canvas_height = self.cell_height * self.rows
+        board_canvas = Canvas(board_container, width=canvas_width, height=canvas_height, highlightthickness=0)
+        board_canvas.pack(expand=True)
 
         for row in range(self.rows):
             for col in range(self.cols):
-                self.grid[row][col] = GridCell(board, row, col, width=self.cell_width, height=self.cell_height)
+                self.grid[row][col] = GridCell(board_canvas, row, col, width=self.cell_width, height=self.cell_height)
 
-        board.pack(fill=BOTH, expand=True)
+        # Sidebar
+        sidebar = Frame(main_container, width=self.sidebar_width, bg=self.bg_sidebar)
+        sidebar.pack(side=RIGHT, fill=Y, expand=False)
+        sidebar.pack_propagate(False) # Verhindert, dass die Sidebar schrumpft
 
-        sidebar = Frame(board, width=100, bg='grey')
+        # Title in Sidebar
+        Label(sidebar, text="STEUERUNG", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 10, "bold")).pack(pady=(20, 10))
 
-        self.reset_button = Button(sidebar, text="New Game", command=self.create_game)
-        self.reset_button.pack(anchor=CENTER, padx=5, pady=5)
+        # Buttons with style
+        button_style = {"width": 18, "pady": 5, "bg": self.accent_color, "fg": "white", "font": ("Arial", 9, "bold"), "relief": "flat"}
+        
+        self.reset_button = Button(sidebar, text="Neues Spiel", command=self.create_game, **button_style)
+        self.reset_button.pack(padx=10, pady=5)
 
-        self.solve_button = Button(sidebar, text="Solve", command=self.solve_game)
-        self.solve_button.pack(anchor=CENTER, padx=5, pady=5)
+        self.solve_button = Button(sidebar, text="Lösen", command=self.solve_game, **button_style)
+        self.solve_button.pack(padx=10, pady=5)
 
-        self.level_slider = Scale(sidebar, from_=1, to=self.rows * self.cols, orient=HORIZONTAL, label="Level", bg='grey', highlightthickness=0)
+        # Sliders with labels
+        slider_style = {"bg": self.bg_sidebar, "fg": self.fg_sidebar, "highlightthickness": 0, "orient": HORIZONTAL, "troughcolor": "#555555", "length": 160}
+
+        Label(sidebar, text="Level:", bg=self.bg_sidebar, fg=self.fg_sidebar).pack(pady=(10, 0))
+        self.level_slider = Scale(sidebar, from_=1, to=self.rows * self.cols, **slider_style)
         self.level_slider.set(self.level)
-        self.level_slider.pack(anchor=CENTER, padx=5, pady=5)
+        self.level_slider.pack(padx=10, pady=(0, 5))
 
-        self.partial_prob_slider = Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, orient=HORIZONTAL, label="Partial Prob", bg='grey', highlightthickness=0)
+        Label(sidebar, text="Partial Prob:", bg=self.bg_sidebar, fg=self.fg_sidebar).pack(pady=(5, 0))
+        self.partial_prob_slider = Scale(sidebar, from_=0.0, to=1.0, resolution=0.1, **slider_style)
         self.partial_prob_slider.set(config.PARTIAL_PROB)
-        self.partial_prob_slider.pack(anchor=CENTER, padx=5, pady=5)
+        self.partial_prob_slider.pack(padx=10, pady=(0, 5))
 
-        self.partial_mode_slider = Scale(sidebar, from_=0, to=2, orient=HORIZONTAL, label="Partial Mode", bg='grey', highlightthickness=0)
+        Label(sidebar, text="Partial Mode:", bg=self.bg_sidebar, fg=self.fg_sidebar).pack(pady=(5, 0))
+        self.partial_mode_slider = Scale(sidebar, from_=0, to=2, **slider_style)
         self.partial_mode_slider.set(config.PARTIAL_MODE)
-        self.partial_mode_slider.pack(anchor=CENTER, padx=5, pady=5)
+        self.partial_mode_slider.pack(padx=10, pady=(0, 10))
 
-        sidebar.pack(anchor=E, fill=Y, expand=False, side=RIGHT)
+        # Status Bar
+        self.status_bar = Frame(self, height=30, bg="#eeeeee", relief=SUNKEN, bd=1)
+        self.status_bar.pack(side=BOTTOM, fill=X)
+        self.status_label = Label(self.status_bar, text=" Status: Bereit", bg="#eeeeee", font=("Arial", 8))
+        self.status_label.pack(side=LEFT)
 
     def display_state(self, state):
         self.after(0, self._display_state, state)
@@ -274,6 +321,7 @@ class SudokuApp(tk.Tk):
 
     def solve(self):
         self._set_controls_state(DISABLED)
+        self.set_status("Löse Sudoku...")
         actions = []
         solved = False
 
@@ -300,11 +348,11 @@ class SudokuApp(tk.Tk):
 
         if not self.stop_solve:
             if solved:
+                self.set_status(f"Gelöst in {len(actions)} Zügen!")
                 print(f'Sudoku solved in {len(actions)} moves! {np.array(actions)}')
-                #self.show_info("Gelöst", f"Sudoku wurde in {len(actions)} Zügen gelöst!")
             else:
+                self.set_status("Lösen fehlgeschlagen")
                 print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
-                self.show_info("Fehler", f"Sudoku konnte nicht innerhalb von {self.level} Zügen gelöst werden!")
             
             self._set_controls_state(NORMAL)
 
