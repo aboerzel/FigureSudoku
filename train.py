@@ -227,9 +227,6 @@ if __name__ == '__main__':
         reward_solved=config.REWARD_SOLVED,
         start_level=current_start_level,
         max_level=config.MAX_LEVEL,
-        unique=config.UNIQUE,
-        partial_prob=config.PARTIAL_PROB,
-        partial_mode=config.PARTIAL_MODE,
         verbose=1
     )
 

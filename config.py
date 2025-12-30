@@ -12,7 +12,7 @@ CHECKPOINT_NAME = "checkpoint"
 MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
 
 # generator parameters
-START_LEVEL = 10
+START_LEVEL = 1
 MAX_LEVEL = 12
 
 # training parameters

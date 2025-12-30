@@ -33,7 +33,7 @@ Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund 
 *   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, nutzt das Projekt **Action Masking**. Dies verhindert, dass der Agent ungültige Züge (z.B. doppelte Farbe in einer Reihe) überhaupt in Erwägung zieht. Dies reduziert den Suchraum dramatisch und stabilisiert das Training (siehe Abschnitt [Action Masking](#-action-masking-detailerklärung)).
 *   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine definierte Erfolgsquote (einstellbar über `REWARD_THRESHOLD`) erreicht.
 *   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle. Das Start-Level wird primär über `START_LEVEL` in der `config.py` gesteuert. Ist dieser Wert auf `None` gesetzt, wird das Level automatisch aus dem letzten Log-Eintrag (`LOG_FILE_PATH`) ermittelt (mit Fallback auf Level 1).
-*   **Backtracking-Generator:** Die Rätsel werden mithilfe eines Backtracking-Algorithmus generiert, der sicherstellt, dass die Aufgaben lösbar sind und optional eine eindeutige Lösung besitzen.
+*   **Rätsel-Generator:** Die Rätsel werden mithilfe eines Backtracking-Algorithmus generiert (`generator.py`), der sicherstellt, dass die Aufgaben lösbar sind und immer genau eine eindeutige Lösung besitzen. Ab Level 11 werden zudem Teilvorgaben unterstützt.
 
 ---
 
@@ -76,7 +76,7 @@ FigureSudoku/
 ├── 📄 config.py             # Zentrale Konfiguration (Hyperparameter, Level, etc.)
 ├── 📄 train.py              # Hauptskript zum Starten des KI-Trainings
 ├── 📄 figure_sudoku_env.py  # Die Gymnasium-Umgebung (Logik & Rewards)
-├── 📄 sudoku_generator.py   # Backtracking-Algorithmus zur Rätsel-Generierung (mit optionaler Eindeutigkeitsprüfung)
+├── 📄 generator.py          # Backtracking-Algorithmus zur Rätsel-Generierung (mit Eindeutigkeitsprüfung & Teilbelegungen)
 ├── 📄 sudoku_game.py        # Grafische Oberfläche zum Spielen & Evaluieren
 ├── 📄 visualizer.py         # Live-Visualisierung während des Trainings
 ├── 📄 callbacks.py          # Logik für Curriculum Learning & Modell-Speicherung
@@ -91,8 +91,8 @@ FigureSudoku/
 Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. Hier eine Übersicht der wichtigsten Parameter:
 
 ### 🧩 Generator (Rätsel-Erstellung)
-*   `START_LEVEL`: Bestimmt das Start-Level für das Training. Wenn ein Wert (1-16) angegeben ist, wird dieser fest verwendet (manuelles Überschreiben). Ist `None` gesetzt, wird das Level beim Fortsetzen eines Trainings automatisch aus der Log-Datei ermittelt (Fallback: Level 1). [Bereich: `1` bis `16` oder `None`]
-*   `MAX_LEVEL`: Das Ziel-Level (höchste Schwierigkeit). [Bereich: `1` bis `16`, aktuell `12`]
+*   `START_LEVEL`: Bestimmt das Start-Level für das Training. Wenn ein Wert (1-12) angegeben ist, wird dieser fest verwendet (manuelles Überschreiben). Ist `None` gesetzt, wird das Level beim Fortsetzen eines Trainings automatisch aus der Log-Datei ermittelt (Fallback: Level 1). [Bereich: `1` bis `12` oder `None`]
+*   `MAX_LEVEL`: Das Ziel-Level (höchste Schwierigkeit). [Bereich: `1` bis `12`]
 *   `UNIQUE`: Stellt sicher, dass jedes generierte Rätsel nur genau eine gültige Lösung hat. [Werte: `True`, `False`]
 *   `PARTIAL_PROB`: Wahrscheinlichkeit (`0.0` bis `1.0`), dass in einem Rätsel Teilvorgaben (nur Farbe oder nur Form) generiert werden. Erhöht die Komplexität, da der Agent fehlende Attribute ergänzen muss.
 *   `PARTIAL_MODE`: Bestimmt die Anzahl der Teilvorgaben pro Rätsel, falls eine Teilbelegung stattfindet (gesteuert durch `PARTIAL_PROB`):

@@ -12,7 +12,7 @@ class CurriculumCallback(BaseCallback):
     based on the success rate.
     """
     def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, reward_solved: float, start_level: int = 1, max_level: int = 16, 
-                 unique: bool = False, partial_prob: float = 0.0, partial_mode: int = 1, verbose: int = 1):
+                 verbose: int = 1):
         super(CurriculumCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.reward_threshold = reward_threshold
@@ -20,9 +20,6 @@ class CurriculumCallback(BaseCallback):
         self.reward_solved = reward_solved
         self.current_level = start_level
         self.max_level = max_level
-        self.unique = unique
-        self.partial_prob = partial_prob
-        self.partial_mode = partial_mode
         self.episodes_at_start_of_level = 0
 
     def _on_step(self) -> bool:
@@ -57,10 +54,7 @@ class CurriculumCallback(BaseCallback):
                         # Level in allen Umgebungen aktualisieren
                         # reset_with_level setzt das neue Level; es wird beim nächsten automatischen Reset wirksam.
                         self.training_env.env_method("reset_with_level",
-                                                     level=self.current_level,
-                                                     unique=self.unique, 
-                                                     partial_prob=self.partial_prob, 
-                                                     partial_mode=self.partial_mode)
+                                                     level=self.current_level)
                 elif num_episodes > 0 and self.verbose > 1:
                     print(f"Waiting for more episodes at level {self.current_level} (current: {episodes_at_current_level}/100)", flush=True)
             except Exception as e:

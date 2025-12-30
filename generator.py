@@ -58,9 +58,22 @@ class SudokuGenerator:
 
             partial_used = 0
 
+            # Level 11/12 spezifisch: Teilbelegungen einfügen falls nötig
+            if level >= 11:
+                pass
+
             for idx in indices:
                 r, c = idx // self.cols, idx % self.cols
+                if init_state[r, c, 0] == Geometry.EMPTY.value and init_state[r, c, 1] == Color.EMPTY.value:
+                    continue
+                
                 old_val = init_state[r, c].copy()
+
+                # Aktuellen HCDS prüfen - wenn wir schon nah genug am Ziel sind, aufhören
+                # Aber nur wenn wir keine partials mehr brauchen
+                current_hcds = self._compute_hcds(init_state)
+                if current_hcds >= target and partial_used >= partial_target:
+                    break
 
                 # 1) Versuch: komplett entfernen
                 init_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
@@ -69,13 +82,15 @@ class SudokuGenerator:
 
                 init_state[r, c] = old_val
 
-                # 2) Versuch: partiell machen
+                # 2) Versuch: partiell machen (nur wenn noch nicht am Limit)
                 if partial_used < partial_target:
-                    init_state[r, c] = self._make_partial(old_val)
-                    if self._has_unique_solution(init_state):
-                        partial_used += 1
-                    else:
-                        init_state[r, c] = old_val
+                    # Sicherstellen dass es noch nicht partiell ist
+                    if old_val[0] != Geometry.EMPTY.value and old_val[1] != Color.EMPTY.value:
+                        init_state[r, c] = self._make_partial(old_val)
+                        if self._has_unique_solution(init_state):
+                            partial_used += 1
+                        else:
+                            init_state[r, c] = old_val
 
             if partial_used != partial_target:
                 continue
@@ -132,7 +147,10 @@ class SudokuGenerator:
                     partial += 1
 
         # einfache, robuste Metrik
-        return empty * 0.4 + partial * 1.2
+        # empty * 0.4 + partial * 1.2
+        # Bei 16 Zellen: 16 * 0.4 = 6.4 max bei leeren Zellen (unmöglich da Lösung eindeutig sein muss)
+        # 16 - (4+3+2+1) = 6 Zellen müssen mindestens belegt sein für Eindeutigkeit? Meist mehr.
+        return empty * 0.3 + partial * 1.0
 
     # ==========================================================
     # SOLVER (UNVERÄNDERT, AUS IHREM CODE)

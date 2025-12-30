@@ -282,7 +282,7 @@ class SudokuApp(tk.Tk):
 
         self.level_label = Label(sidebar, text=f"Level: {self.level}", bg=self.bg_sidebar, fg=self.fg_sidebar)
         self.level_label.pack(pady=(5, 0))
-        self.level_slider = Scale(sidebar, from_=1, to=self.rows * self.cols, showvalue=0, command=self.update_level_label, **slider_style)
+        self.level_slider = Scale(sidebar, from_=1, to=12, showvalue=0, command=self.update_level_label, **slider_style)
         self.level_slider.set(self.level)
         self.level_slider.pack(padx=10, pady=(0, 5))
 
@@ -321,7 +321,7 @@ class SudokuApp(tk.Tk):
         actions = []
         solved = False
 
-        for move_count in range(1, self.level + 1):
+        for move_count in range(1, config.MAX_TIMESTEPS + 1):
             if self.stop_solve:
                 break
 
@@ -348,7 +348,7 @@ class SudokuApp(tk.Tk):
                 print(f'Sudoku solved in {len(actions)} moves! {np.array(actions)}')
             else:
                 self.set_status("Lösen fehlgeschlagen")
-                print(f'Sudoku could not be solved within the maximum number of {self.level} moves!')
+                print(f'Sudoku could not be solved within the maximum number of {config.MAX_TIMESTEPS} moves!')
             
             self._set_controls_state(NORMAL)
 
