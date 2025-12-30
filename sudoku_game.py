@@ -44,19 +44,65 @@ class GridCell:
             # Full figure: normal display
             self.shape = self.get_shape(geometry, color)
         elif geometry != Geometry.EMPTY.value:
-            # Geometry only: display as gray shape
+            # Geometry only: display as a solid gray shape
             self.shape = self.get_shape(geometry, None)
         elif color != Color.EMPTY.value:
-            # Color only: fill background with that color
-            bg_color = self.get_color(color)
-            self.board.itemconfig(self.rect, fill=bg_color)
+            # Color only: display as a thick colored dashed frame/border inside the cell
+            # This indicates that the color is fixed but the shape is missing
+            padding = 10
+            x1 = self.x + padding
+            y1 = self.y + padding
+            x2 = self.x + self.width - padding
+            y2 = self.y + self.height - padding
+            color_str = self.get_color(color)
+            
+            tag = f"shape_{self.row}_{self.col}"
+            
+            # The dashed rectangle
+            self.board.create_rectangle(
+                x1, y1, x2, y2, 
+                outline=color_str, width=3, dash=(4, 4), tags=tag
+            )
+            
+            # Hatching (Schraffur) - diagonal lines
+            spacing = 8
+            # We want lines from top-left to bottom-right: y = x + offset
+            # The range of offset:
+            # Min: y1 - x2
+            # Max: y2 - x1
+            for offset in range(int(y1 - x2), int(y2 - x1), spacing):
+                # Intersection with x=x1: y = x1 + offset
+                # Intersection with x=x2: y = x2 + offset
+                # Intersection with y=y1: x = y1 - offset
+                # Intersection with y=y2: x = y2 - offset
+                
+                lx1 = max(x1, y1 - offset)
+                ly1 = lx1 + offset
+                lx2 = min(x2, y2 - offset)
+                ly2 = lx2 + offset
+                
+                if lx1 < lx2:
+                    # Clip to bounds for safety
+                    clx1 = max(x1, min(x2, lx1))
+                    cly1 = max(y1, min(y2, ly1))
+                    clx2 = max(x1, min(x2, lx2))
+                    cly2 = max(y1, min(y2, ly2))
+                    
+                    if abs(clx1 - clx2) > 1 or abs(cly1 - cly2) > 1:
+                        self.board.create_line(clx1, cly1, clx2, cly2, fill=color_str, width=1, tags=tag)
+            
+            # Ensure lines are on top
+            self.board.tag_raise(tag)
+            
+            self.board.tag_bind(tag, "<Button-1>", self.clicked)
+            self.shape = tag
 
     def clear(self):
         if self.shape is not None:
             self.board.delete(self.shape)
             self.shape = None
 
-    def create_triangle(self, color='red'):
+    def create_triangle(self, color='red', dash=None):
         padding = self.height * 0.2
         ha = self.height - 2 * padding
         a = 2 * ha / math.sqrt(3)
@@ -74,31 +120,40 @@ class GridCell:
         cy = my - ha / 2
 
         points = [ax, ay, bx, by, cx, cy]
-        shape = self.board.create_polygon(points, smooth=False, fill=color, outline='')
+        if dash:
+            shape = self.board.create_polygon(points, smooth=False, fill='', outline=color, width=2, dash=dash)
+        else:
+            shape = self.board.create_polygon(points, smooth=False, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
-    def create_circle(self, color='red'):
+    def create_circle(self, color='red', dash=None):
         padding = self.height * 0.2
         x1 = self.x + padding
         y1 = self.y + padding
         x2 = self.x + self.width - padding
         y2 = self.y + self.height - padding
-        shape = self.board.create_oval(x1, y1, x2, y2, fill=color, outline='')
+        if dash:
+            shape = self.board.create_oval(x1, y1, x2, y2, fill='', outline=color, width=2, dash=dash)
+        else:
+            shape = self.board.create_oval(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
-    def create_quadrat(self, color='red'):
+    def create_quadrat(self, color='red', dash=None):
         padding = self.height * 0.2
         x1 = self.x + padding
         y1 = self.y + padding
         x2 = self.x + self.width - padding
         y2 = self.y + self.height - padding
-        shape = self.board.create_rectangle(x1, y1, x2, y2, fill=color, outline='')
+        if dash:
+            shape = self.board.create_rectangle(x1, y1, x2, y2, fill='', outline=color, width=2, dash=dash)
+        else:
+            shape = self.board.create_rectangle(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
-    def create_hexagon(self, color='red'):
+    def create_hexagon(self, color='red', dash=None):
         padding = self.height * 0.2
         a = (self.width - (2 * padding)) / 2
         ri = math.sqrt(3) * a / 2
@@ -125,7 +180,10 @@ class GridCell:
         ey = my - ri
 
         points = [ax, ay, bx, by, cx, cy, dx, dy, ex, ey, fx, fy]
-        shape = self.board.create_polygon(points, smooth=False, fill=color, outline='')
+        if dash:
+            shape = self.board.create_polygon(points, smooth=False, fill='', outline=color, width=2, dash=dash)
+        else:
+            shape = self.board.create_polygon(points, smooth=False, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
         return shape
 
@@ -158,7 +216,7 @@ class GridCell:
             Color.BLUE.value: 'blue'
         }[color]
 
-    def get_shape(self, shape, color):
+    def get_shape(self, shape, color, dash=None):
         func = {
             Geometry.QUADRAT.value: self.create_quadrat,
             Geometry.TRIANGLE.value: self.create_triangle,
@@ -167,7 +225,7 @@ class GridCell:
         }.get(shape)
         if func:
             color_str = 'lightgray' if color is None else self.get_color(color)
-            return func(color=color_str)
+            return func(color=color_str, dash=dash)
         return None
 
 
@@ -263,14 +321,11 @@ class SudokuApp(tk.Tk):
         sidebar.pack(side=RIGHT, fill=Y, expand=False)
         sidebar.pack_propagate(False) # Verhindert, dass die Sidebar schrumpft
 
-        # Title in Sidebar
-        Label(sidebar, text="STEUERUNG", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 10, "bold")).pack(pady=(20, 10))
-
         # Buttons with style
         button_style = {"width": 18, "pady": 5, "bg": self.accent_color, "fg": "white", "font": ("Arial", 9, "bold"), "relief": "flat"}
         
         self.reset_button = Button(sidebar, text="Neues Spiel", command=self.create_game, **button_style)
-        self.reset_button.pack(padx=10, pady=5)
+        self.reset_button.pack(padx=10, pady=(20, 5))
 
         self.solve_button = Button(sidebar, text="Lösen", command=self.solve_game, **button_style)
         self.solve_button.pack(padx=10, pady=5)
@@ -278,10 +333,8 @@ class SudokuApp(tk.Tk):
         # Sliders with labels
         slider_style = {"bg": self.bg_sidebar, "fg": self.fg_sidebar, "highlightthickness": 0, "orient": HORIZONTAL, "troughcolor": "#555555", "length": 160}
 
-        Label(sidebar, text="KONFIGURATION", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 10, "bold")).pack(pady=(20, 5))
-
-        self.level_label = Label(sidebar, text=f"Level: {self.level}", bg=self.bg_sidebar, fg=self.fg_sidebar)
-        self.level_label.pack(pady=(5, 0))
+        self.level_label = Label(sidebar, text=f"Level: {self.level}", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 11, "bold"))
+        self.level_label.pack(pady=(20, 0))
         self.level_slider = Scale(sidebar, from_=1, to=12, showvalue=0, command=self.update_level_label, **slider_style)
         self.level_slider.set(self.level)
         self.level_slider.pack(padx=10, pady=(0, 5))
