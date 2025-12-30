@@ -33,7 +33,7 @@ Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund 
 *   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, nutzt das Projekt **Action Masking**. Dies verhindert, dass der Agent ungültige Züge (z.B. doppelte Farbe in einer Reihe) überhaupt in Erwägung zieht. Dies reduziert den Suchraum dramatisch und stabilisiert das Training (siehe Abschnitt [Action Masking](#-action-masking-detailerklärung)).
 *   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine definierte Erfolgsquote (einstellbar über `REWARD_THRESHOLD`) erreicht.
 *   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle. Das Start-Level wird primär über `START_LEVEL` in der `config.py` gesteuert. Ist dieser Wert auf `None` gesetzt, wird das Level automatisch aus dem letzten Log-Eintrag (`LOG_FILE_PATH`) ermittelt (mit Fallback auf Level 1).
-*   **Rätsel-Generator:** Die Rätsel werden mithilfe eines Backtracking-Algorithmus generiert (`generator.py`), der sicherstellt, dass die Aufgaben lösbar sind und immer genau eine eindeutige Lösung besitzen. Ab Level 11 werden zudem Teilvorgaben unterstützt.
+*   **Rätsel-Generator:** Die Rätsel werden mithilfe eines hochoptimierten Backtracking-Algorithmus generiert (`sudoku_generator.py`). Dieser nutzt die **HCDS-Metrik** (Human-Centric Difficulty System), um gezielt Schwierigkeitsgrade von Level 1 bis 12 zu erzeugen, die das menschliche Schwierigkeitsempfinden abbilden. Er stellt sicher, dass jede Aufgabe eine eindeutige Lösung besitzt. Ab Level 11 werden zudem Teilvorgaben (Partial Shapes) unterstützt.
 
 ---
 
@@ -46,6 +46,22 @@ Der Lösungsprozess folgt einem klassischen RL-Zyklus:
 3.  **Entscheidung:** Das neuronale Netz bewertet die validen Aktionen und wählt die Erfolgversprechendste aus.
 4.  **Belohnung:** Für jeden korrekten Zug erhält der Agent einen kleinen Reward. Das Lösen des gesamten Rätsels gibt einen großen Bonus.
 5.  **Lernen:** Über PPO optimiert der Agent seine Strategie, um die kumulierte Belohnung zu maximieren.
+
+---
+
+## 🧩 Rätsel-Generator & Schwierigkeit (HCDS)
+
+Der neue Generator (`sudoku_generator.py`) basiert auf dem **Human-Centric Difficulty System (HCDS)**. Er wurde speziell optimiert, um das menschliche Schwierigkeitsempfinden in den Level-Stufen 1-12 abzubilden und auch bei hohen Schwierigkeitsgraden eine schnelle Rätsel-Generierung (ca. 3s für Level 12) bei garantierter Eindeutigkeit zu ermöglichen.
+
+### Schwierigkeitsstufen (1-12):
+*   **Level 1-10:** Die Schwierigkeit skaliert linear durch das Entfernen von Feldern, bis der Ziel-HCDS-Wert erreicht ist.
+*   **Level 11:** Enthält zusätzlich **eine Teilvorgabe** (nur Form oder nur Farbe).
+*   **Level 12:** Enthält **zwei Teilvorgaben**.
+
+### Performance-Features:
+*   **MRV-Heuristik (Minimum Remaining Values):** Beschleunigt die Eindeutigkeitsprüfung durch intelligente Wahl des nächsten Feldes im Backtracking.
+*   **In-Place Backtracking:** Minimiert Speicherallokationen und CPU-Last.
+*   **Inkrementelle HCDS-Berechnung:** Effiziente Bewertung der Schwierigkeit während des Generierungsprozesses.
 
 ---
 
@@ -76,7 +92,7 @@ FigureSudoku/
 ├── 📄 config.py             # Zentrale Konfiguration (Hyperparameter, Level, etc.)
 ├── 📄 train.py              # Hauptskript zum Starten des KI-Trainings
 ├── 📄 figure_sudoku_env.py  # Die Gymnasium-Umgebung (Logik & Rewards)
-├── 📄 generator.py          # Backtracking-Algorithmus zur Rätsel-Generierung (mit Eindeutigkeitsprüfung & Teilbelegungen)
+├── 📄 sudoku_generator.py   # Hochoptimierter Generator mit HCDS-Metrik & Eindeutigkeitsprüfung
 ├── 📄 sudoku_game.py        # Grafische Oberfläche zum Spielen & Evaluieren
 ├── 📄 visualizer.py         # Live-Visualisierung während des Trainings
 ├── 📄 callbacks.py          # Logik für Curriculum Learning & Modell-Speicherung
@@ -93,12 +109,6 @@ Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. 
 ### 🧩 Generator (Rätsel-Erstellung)
 *   `START_LEVEL`: Bestimmt das Start-Level für das Training. Wenn ein Wert (1-12) angegeben ist, wird dieser fest verwendet (manuelles Überschreiben). Ist `None` gesetzt, wird das Level beim Fortsetzen eines Trainings automatisch aus der Log-Datei ermittelt (Fallback: Level 1). [Bereich: `1` bis `12` oder `None`]
 *   `MAX_LEVEL`: Das Ziel-Level (höchste Schwierigkeit). [Bereich: `1` bis `12`]
-*   `UNIQUE`: Stellt sicher, dass jedes generierte Rätsel nur genau eine gültige Lösung hat. [Werte: `True`, `False`]
-*   `PARTIAL_PROB`: Wahrscheinlichkeit (`0.0` bis `1.0`), dass in einem Rätsel Teilvorgaben (nur Farbe oder nur Form) generiert werden. Erhöht die Komplexität, da der Agent fehlende Attribute ergänzen muss.
-*   `PARTIAL_MODE`: Bestimmt die Anzahl der Teilvorgaben pro Rätsel, falls eine Teilbelegung stattfindet (gesteuert durch `PARTIAL_PROB`):
-    *   `1`: Ein Feld wird teilbelegt.
-    *   `2`: Zwei Felder werden teilbelegt.
-    *   `3`: Drei Felder werden teilbelegt.
 
 ### ⚡ Training & Hyperparameter
 *   `NUM_AGENTS`: Anzahl der parallelen Trainings-Umgebungen. [Bereich: `>= 1`]
@@ -113,7 +123,7 @@ Das Belohnungssystem ist darauf ausgelegt, den Agenten zu einem effizienten und 
 
 1.  **`REWARD_SOLVED` (Aktuell: `10.0`)**:
     *   **Zweck:** Der "Heilige Gral". Dies ist die maximale Belohnung, die der Agent erhält, wenn das gesamte Gitter regelkonform gefüllt ist.
-    *   **Warum dieser Wert?** Er muss deutlich höher sein als die Summe der Einzelzüge, damit der Agent das übergeordnete Ziel (das Lösen) priorisiert. Selbst auf dem höchsten Schwierigkeitsgrad (Level 16, d.h. 16 leere Felder) beträgt die Summe aller validen Einzelzug-Belohnungen nur ca. `2.45`, was bedeutet, dass der `REWARD_SOLVED` (10.0) immer noch mehr als das Vierfache davon wert ist. Dies stellt sicher, dass der Agent auch bei komplexen Rätseln (Level 12, 13+) stets motiviert bleibt, das Rätsel vollständig zu lösen.
+    *   **Warum dieser Wert?** Er muss deutlich höher sein als die Summe der Einzelzüge, damit der Agent das übergeordnete Ziel (das Lösen) priorisiert. Selbst auf dem höchsten Schwierigkeitsgrad (Level 12) beträgt die Summe aller validen Einzelzug-Belohnungen nur ca. `2.45`, was bedeutet, dass der `REWARD_SOLVED` (10.0) immer noch mehr als das Vierfache davon wert ist. Dies stellt sicher, dass der Agent auch bei komplexen Rätseln stets motiviert bleibt, das Rätsel vollständig zu lösen.
 
 2.  **`REWARD_VALID_MOVE_BASE` (Aktuell: `0.1`)**:
     *   **Zweck:** Belohnung für jeden korrekten Zug.

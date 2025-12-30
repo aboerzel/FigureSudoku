@@ -4,7 +4,7 @@ import gymnasium as gym
 from gymnasium.spaces import Box, Discrete
 
 from shapes import Geometry, Color
-from generator import SudokuGenerator
+from sudoku_generator import SudokuGenerator
 from visualizer import SudokuVisualizer
 
 
