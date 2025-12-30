@@ -14,9 +14,6 @@ MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_NAME)
 # generator parameters
 START_LEVEL = 10
 MAX_LEVEL = 12
-UNIQUE = False
-PARTIAL_PROB = 0.0
-PARTIAL_MODE = 1
 
 # training parameters
 MAX_TIMESTEPS = 50

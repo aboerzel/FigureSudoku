@@ -4,20 +4,17 @@ import gymnasium as gym
 from gymnasium.spaces import Box, Discrete
 
 from shapes import Geometry, Color
-from sudoku_generator import SudokuGenerator
+from generator import SudokuGenerator
 from visualizer import SudokuVisualizer
 
 
 class FigureSudokuEnv(gym.Env):
 
-    def __init__(self, env_id=0, level=1, max_steps=None, render_gui=False, unique=False, partial_prob=0.0, partial_mode=1,
+    def __init__(self, env_id=0, level=1, max_steps=None, render_gui=False,
                  reward_solved=10.0, reward_valid_move_base=0.1, reward_invalid_move=-0.5):
         super(FigureSudokuEnv, self).__init__()
         self.env_id = env_id
         self.level = level
-        self.unique = unique
-        self.partial_prob = partial_prob
-        self.partial_mode = partial_mode
         self.reward_solved = reward_solved
         self.reward_valid_move_base = reward_valid_move_base
         self.reward_invalid_move = reward_invalid_move
@@ -81,13 +78,7 @@ class FigureSudokuEnv(gym.Env):
         self.rewards = []
         self.valids = 0
 
-        initial_items = (self.rows * self.cols) - self.level
-        self.solved_state, self.state = self.generator.generate(
-            initial_items=initial_items, 
-            unique=self.unique,
-            partial_prob=self.partial_prob, 
-            partial_mode=self.partial_mode
-        )
+        self.solved_state, self.state = self.generator.generate(self.level)
 
         if self.gui is not None:
             self.gui.clear_visual_feedback()
@@ -96,14 +87,8 @@ class FigureSudokuEnv(gym.Env):
 
         return self._get_obs(), {}
 
-    def reset_with_level(self, level, unique=None, partial_prob=None, partial_mode=None, seed=None, options=None):
+    def reset_with_level(self, level, seed=None, options=None):
         self.level = level
-        if unique is not None:
-            self.unique = unique
-        if partial_prob is not None:
-            self.partial_prob = partial_prob
-        if partial_mode is not None:
-            self.partial_mode = partial_mode
         return self.reset(seed=seed, options=options)
 
     def render(self, **kwargs):

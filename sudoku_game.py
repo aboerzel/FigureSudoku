@@ -214,12 +214,7 @@ class SudokuApp(tk.Tk):
     def create_game(self):
         self.set_status("Generiere Spiel...")
         self.level = self.level_slider.get()
-        self.obs, _info = self.env.reset_with_level(
-            level=self.level,
-            unique=True,
-            partial_prob=self.partial_prob_slider.get() / 100.0,
-            partial_mode=self.partial_mode_slider.get()
-        )
+        self.obs, _info = self.env.reset_with_level(level=self.level)
         self.game_state = self.env.state.copy()
         self.display_state(self.game_state)
         self.set_status("Bereit")
@@ -291,20 +286,6 @@ class SudokuApp(tk.Tk):
         self.level_slider.set(self.level)
         self.level_slider.pack(padx=10, pady=(0, 5))
 
-        Label(sidebar, text="TEILBELEGUNG", bg=self.bg_sidebar, fg=self.fg_sidebar, font=("Arial", 9, "bold")).pack(pady=(15, 5))
-
-        self.partial_prob_label = Label(sidebar, text=f"Häufigkeit: {int(config.PARTIAL_PROB * 100)}%", bg=self.bg_sidebar, fg=self.fg_sidebar)
-        self.partial_prob_label.pack(pady=(5, 0))
-        self.partial_prob_slider = Scale(sidebar, from_=0, to=100, resolution=1, showvalue=0, command=self.update_partial_prob_label, **slider_style)
-        self.partial_prob_slider.set(int(config.PARTIAL_PROB * 100))
-        self.partial_prob_slider.pack(padx=10, pady=(0, 5))
-
-        self.partial_mode_label = Label(sidebar, text=f"Anzahl Felder: {config.PARTIAL_MODE}", bg=self.bg_sidebar, fg=self.fg_sidebar)
-        self.partial_mode_label.pack(pady=(5, 0))
-        self.partial_mode_slider = Scale(sidebar, from_=0, to=2, showvalue=0, command=self.update_partial_mode_label, **slider_style)
-        self.partial_mode_slider.set(config.PARTIAL_MODE)
-        self.partial_mode_slider.pack(padx=10, pady=(0, 10))
-
         # Status Bar
         self.status_bar = Frame(self, height=30, bg="#eeeeee", relief=SUNKEN, bd=1)
         self.status_bar.pack(side=BOTTOM, fill=X)
@@ -326,8 +307,7 @@ class SudokuApp(tk.Tk):
 
     def __set_controls_state(self, state):
         controls = [
-            self.solve_button, self.reset_button, self.level_slider,
-            self.partial_prob_slider, self.partial_mode_slider
+            self.solve_button, self.reset_button, self.level_slider
         ]
         for control in controls:
             control.config(state=state)
@@ -375,11 +355,7 @@ class SudokuApp(tk.Tk):
 
 if __name__ == "__main__":
     model = MaskablePPO.load(config.MODEL_PATH)
-    env = FigureSudokuEnv(
-        reward_solved=config.REWARD_SOLVED,
-        reward_valid_move_base=config.REWARD_VALID_MOVE_BASE,
-        reward_invalid_move=config.REWARD_INVALID_MOVE
-    )
+    env = FigureSudokuEnv(level=config.START_LEVEL)
         
     app = SudokuApp(model, env)
     app.mainloop()

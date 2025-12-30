@@ -69,7 +69,7 @@ class SudokuGenerator:
                             if shape in current_available:
                                 current_available.remove(shape)
                 
-                if self.count_solutions(init_state.copy(), current_available, limit=2) == 1:
+                if self._count_solutions(init_state.copy(), current_available, limit=2) == 1:
                     num_removed += 1
                 else:
                     # Nicht eindeutig -> Figur wieder einsetzen
@@ -104,7 +104,7 @@ class SudokuGenerator:
         
         return solved_state, init_state
 
-    def count_solutions(self, state, available_shapes, limit=2):
+    def _count_solutions(self, state, available_shapes, limit=2):
         """
         Zählt die Anzahl der Lösungen für einen gegebenen Zustand.
         Bricht ab, wenn das Limit erreicht ist.
@@ -145,7 +145,7 @@ class SudokuGenerator:
             state[r, c] = [g_val, c_val]
             available_shapes.remove((g_val, c_val))
             
-            count += self.count_solutions(state, available_shapes, limit)
+            count += self._count_solutions(state, available_shapes, limit)
             
             # Backtrack
             available_shapes.add((g_val, c_val))
@@ -222,3 +222,4 @@ class SudokuGenerator:
                 if state[i, c, 0] == g or state[i, c, 1] == col:
                     return False
         return True
+
