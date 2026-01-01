@@ -261,10 +261,13 @@ class FigureSudokuEnv(gym.Env):
         g_val = geometry.value if hasattr(geometry, 'value') else geometry
         c_val = color.value if hasattr(color, 'value') else color
         self.state[row, col] = [g_val, c_val]
-        self._action_mask = None
+        self.invalidate_action_mask()
 
         if self.gui is not None:
             self.gui.display_state(self.state)
+
+    def invalidate_action_mask(self):
+        self._action_mask = None
 
     @staticmethod
     def is_field_empty(state, row, col):

@@ -13,10 +13,11 @@ from figure_sudoku_env import FigureSudokuEnv
 from shapes import Geometry, Color
 
 class GridCell:
-    def __init__(self, board, row, col, width=80, height=80):
+    def __init__(self, board, row, col, width=80, height=80, app=None):
         self.board = board
         self.row = row
         self.col = col
+        self.app = app
 
         self.width = width
         self.height = height
@@ -28,11 +29,48 @@ class GridCell:
         bg_color = "#f9f9f9" if (row + col) % 2 == 0 else "#ffffff"
         self.rect = board.create_rectangle(self.x, self.y, self.x + width, self.y + height, outline="#cccccc", fill=bg_color, width=1)
         self.board.tag_bind(self.rect, "<Button-1>", self.clicked)
+        self.board.tag_bind(self.rect, "<ButtonRelease-1>", self.released)
+        self.board.tag_bind(self.rect, "<Button-3>", self.right_clicked)
+        self.board.tag_bind(self.rect, "<Enter>", self.enter)
+        self.board.tag_bind(self.rect, "<Leave>", self.leave)
 
         self.shape = None
+        self.preview_shape = None
 
     def clicked(self, event):
-        return
+        if self.app and hasattr(self.app, 'grid') and \
+           self.row < self.app.rows and self.col < self.app.cols and \
+           self.app.grid[self.row, self.col] == self:
+            if hasattr(self.app, 'cell_clicked'):
+                self.app.cell_clicked(self.row, self.col)
+
+    def released(self, event):
+        if self.app and hasattr(self.app, 'grid') and \
+           self.row < self.app.rows and self.col < self.app.cols and \
+           self.app.grid[self.row, self.col] == self:
+            if hasattr(self.app, 'cell_released'):
+                self.app.cell_released(self.row, self.col)
+
+    def right_clicked(self, event):
+        if self.app and hasattr(self.app, 'grid') and \
+           self.row < self.app.rows and self.col < self.app.cols and \
+           self.app.grid[self.row, self.col] == self:
+            if hasattr(self.app, 'cell_right_clicked'):
+                self.app.cell_right_clicked(self.row, self.col)
+
+    def enter(self, event):
+        if self.app and hasattr(self.app, 'grid') and \
+           self.row < self.app.rows and self.col < self.app.cols and \
+           self.app.grid[self.row, self.col] == self:
+            if hasattr(self.app, 'cell_enter'):
+                self.app.cell_enter(self.row, self.col)
+
+    def leave(self, event):
+        if self.app and hasattr(self.app, 'grid') and \
+           self.row < self.app.rows and self.col < self.app.cols and \
+           self.app.grid[self.row, self.col] == self:
+            if hasattr(self.app, 'cell_leave'):
+                self.app.cell_leave(self.row, self.col)
 
     def set_shape(self, geometry, color):
         self.clear()
@@ -95,7 +133,65 @@ class GridCell:
             self.board.tag_raise(tag)
             
             self.board.tag_bind(tag, "<Button-1>", self.clicked)
+            self.board.tag_bind(tag, "<ButtonRelease-1>", self.released)
+            self.board.tag_bind(tag, "<Button-3>", self.right_clicked)
+            self.board.tag_bind(tag, "<Enter>", self.enter)
+            self.board.tag_bind(tag, "<Leave>", self.leave)
             self.shape = tag
+
+    def set_preview(self, geometry, color, valid=True):
+        self.clear_preview()
+        
+        # Anforderung: "als wäre sie schon ausgeführt, nur mit einer entsprechenden umrandung"
+        # Wir ändern die Hintergrundfarbe der Zelle und zeichnen die Form
+        if valid:
+            self.board.itemconfig(self.rect, fill="#e8f5e9") # Light green for valid preview
+            outline_color = "#4caf50"
+        else:
+            self.board.itemconfig(self.rect, fill="#ffebee") # Light red for invalid preview
+            outline_color = "#e53935"
+
+        # Preview shape drawing
+        if geometry != Geometry.EMPTY.value and color != Color.EMPTY.value:
+            self.preview_shape = self.get_shape(geometry, color, dash=(4, 2))
+        elif geometry != Geometry.EMPTY.value:
+            self.preview_shape = self.get_shape(geometry, None, dash=(4, 2))
+        elif color != Color.EMPTY.value:
+            # For color preview, we use a dashed circle as placeholder if no geometry is there
+            self.preview_shape = self.create_circle(color=self.get_color(color), dash=(4, 2))
+        
+        # Add a thick border to indicate preview
+        tag = f"preview_border_{self.row}_{self.col}"
+        padding = 2
+        self.board.create_rectangle(
+            self.x + padding, self.y + padding, 
+            self.x + self.width - padding, self.y + self.height - padding,
+            outline=outline_color, width=2, tags=tag
+        )
+        
+        if self.preview_shape:
+            if isinstance(self.preview_shape, str): # if it's a tag
+                self.preview_border = tag
+            else:
+                self.preview_border = tag
+        else:
+            self.preview_border = tag
+
+    def clear_preview(self):
+        # Reset background to normal
+        bg_color = "#f9f9f9" if (self.row + self.col) % 2 == 0 else "#ffffff"
+        self.board.itemconfig(self.rect, fill=bg_color)
+        
+        if self.preview_shape is not None:
+            if isinstance(self.preview_shape, str):
+                self.board.delete(self.preview_shape)
+            else:
+                self.board.delete(self.preview_shape)
+            self.preview_shape = None
+            
+        if hasattr(self, 'preview_border') and self.preview_border:
+            self.board.delete(self.preview_border)
+            self.preview_border = None
 
     def clear(self):
         if self.shape is not None:
@@ -125,6 +221,10 @@ class GridCell:
         else:
             shape = self.board.create_polygon(points, smooth=False, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
+        self.board.tag_bind(shape, "<ButtonRelease-1>", self.released)
+        self.board.tag_bind(shape, "<Button-3>", self.right_clicked)
+        self.board.tag_bind(shape, "<Enter>", self.enter)
+        self.board.tag_bind(shape, "<Leave>", self.leave)
         return shape
 
     def create_circle(self, color='red', dash=None):
@@ -138,6 +238,10 @@ class GridCell:
         else:
             shape = self.board.create_oval(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
+        self.board.tag_bind(shape, "<ButtonRelease-1>", self.released)
+        self.board.tag_bind(shape, "<Button-3>", self.right_clicked)
+        self.board.tag_bind(shape, "<Enter>", self.enter)
+        self.board.tag_bind(shape, "<Leave>", self.leave)
         return shape
 
     def create_quadrat(self, color='red', dash=None):
@@ -151,6 +255,10 @@ class GridCell:
         else:
             shape = self.board.create_rectangle(x1, y1, x2, y2, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
+        self.board.tag_bind(shape, "<ButtonRelease-1>", self.released)
+        self.board.tag_bind(shape, "<Button-3>", self.right_clicked)
+        self.board.tag_bind(shape, "<Enter>", self.enter)
+        self.board.tag_bind(shape, "<Leave>", self.leave)
         return shape
 
     def create_hexagon(self, color='red', dash=None):
@@ -185,6 +293,10 @@ class GridCell:
         else:
             shape = self.board.create_polygon(points, smooth=False, fill=color, outline='')
         self.board.tag_bind(shape, "<Button-1>", self.clicked)
+        self.board.tag_bind(shape, "<ButtonRelease-1>", self.released)
+        self.board.tag_bind(shape, "<Button-3>", self.right_clicked)
+        self.board.tag_bind(shape, "<Enter>", self.enter)
+        self.board.tag_bind(shape, "<Leave>", self.leave)
         return shape
 
     @staticmethod
@@ -251,6 +363,11 @@ class SudokuApp(tk.Tk):
         self.width = self.cell_width * self.cols + self.sidebar_width
         self.help_sidebar_width = 660
         self.help_sidebar_visible = False
+        
+        # Drag and Drop State
+        self.dragging_item = None # (type, value) where type is 'geometry' or 'color'
+        self.drag_widget = None # The visual representation being dragged
+        self.last_hovered_cell = None # (row, col)
 
         self.geometry(f"{self.width}x{self.height}")
         self.title('Figure Sudoku')
@@ -268,14 +385,19 @@ class SudokuApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close_window)
 
         self.stop_solve = False
-        self.game_state = None
+        self.game_state = np.full((self.rows, self.cols, 2), Geometry.EMPTY.value, dtype=np.int32)
+        self.initial_state = self.game_state.copy()
         self.obs = None
+        
+        # Initialisiere das erste Spiel
+        self.after(100, self.create_game)
 
     def create_game(self):
         self.set_status("Generiere Spiel...")
         self.level = self.level_slider.get()
         self.obs, _info = self.env.reset_with_level(level=self.level)
         self.game_state = self.env.state.copy()
+        self.initial_state = self.game_state.copy()
         self.display_state(self.game_state)
         self.set_status("Bereit")
 
@@ -313,6 +435,106 @@ class SudokuApp(tk.Tk):
         
         self.geometry(f"{new_width}x{self.height}")
 
+    def start_drag(self, event, item_type, value):
+        self.dragging_item = (item_type, value)
+        # Create a small floating widget to follow the mouse
+        self.drag_widget = tk.Canvas(self, width=30, height=30, bg="white", highlightthickness=1, highlightbackground="black")
+        cell = GridCell(self.drag_widget, 0, 0, width=30, height=30, app=None)
+        if item_type == 'geometry':
+            cell.set_shape(value, Color.EMPTY.value) # Neutraler Hintergrund für Formen
+        else:
+            cell.set_shape(Geometry.CIRCLE.value, value) # Show color on a circle
+        
+        self.drag_widget.place(x=event.x_root - self.winfo_rootx(), y=event.y_root - self.winfo_rooty(), anchor=CENTER)
+        self.set_status(f"Ziehe {item_type}...")
+
+    def on_drag(self, event):
+        if self.drag_widget:
+            # Update drag widget position
+            x = event.x_root - self.winfo_rootx()
+            y = event.y_root - self.winfo_rooty()
+            self.drag_widget.place(x=x, y=y)
+            
+            # Use board_canvas's winfo_root to get coordinates relative to the board
+            bx = event.x_root - self.board_canvas.winfo_rootx()
+            by = event.y_root - self.board_canvas.winfo_rooty()
+            
+            cell_found = None
+            if 0 <= bx < self.cell_width * self.cols and 0 <= by < self.cell_height * self.rows:
+                col = int(bx // self.cell_width)
+                row = int(by // self.cell_height)
+                cell_found = (row, col)
+            
+            if cell_found != self.last_hovered_cell:
+                if self.last_hovered_cell:
+                    self.cell_leave(*self.last_hovered_cell)
+                if cell_found:
+                    self.cell_enter(*cell_found)
+                self.last_hovered_cell = cell_found
+
+    def stop_drag(self, event):
+        # Determine cell one last time using root coordinates to be precise
+        bx = event.x_root - self.board_canvas.winfo_rootx()
+        by = event.y_root - self.board_canvas.winfo_rooty()
+        
+        target_cell = None
+        if 0 <= bx < self.cell_width * self.cols and 0 <= by < self.cell_height * self.rows:
+            col = int(bx // self.cell_width)
+            row = int(by // self.cell_height)
+            target_cell = (row, col)
+
+        if self.drag_widget:
+            self.drag_widget.destroy()
+            self.drag_widget = None
+        
+        # Clear any existing preview before making the move
+        if self.last_hovered_cell:
+            self.cell_leave(*self.last_hovered_cell)
+        
+        # Check if we dropped on a cell
+        if target_cell:
+            # First clear preview on the target cell as well to avoid artifacts
+            self.cell_leave(*target_cell)
+            self.cell_released(*target_cell)
+        
+        self.last_hovered_cell = None
+        self.dragging_item = None
+        self.set_status("Bereit")
+
+    def clear_drag_item(self):
+        self.dragging_item = None
+
+    def cell_enter(self, row, col):
+        if self.dragging_item and self.game_state is not None:
+            item_type, value = self.dragging_item
+            curr_g, curr_c = self.game_state[row, col]
+            
+            new_g = curr_g
+            new_c = curr_c
+            if item_type == 'geometry':
+                new_g = value
+            else:
+                new_c = value
+            
+            # Calculate target based on current cell content
+            actual_g, actual_c = self._calculate_target(row, col, new_g, new_c)
+            
+            # Check if this addition would be valid
+            valid = self._is_move_valid(row, col, actual_g, actual_c)
+            
+            # We show preview regardless, but the visual style (color/border) 
+            # will indicate if it's valid or not (light blue vs light red)
+            self.grid[row, col].set_preview(actual_g, actual_c, valid=valid)
+
+    def cell_leave(self, row, col):
+        self.grid[row, col].clear_preview()
+
+    def _calculate_target(self, row, col, new_g, new_c):
+        # Wir geben einfach die neuen Werte zurück, da wir nun auch 
+        # vorbelegte Felder aktualisieren wollen. 
+        # Die Validierung erfolgt später in _is_move_valid.
+        return new_g, new_c
+
     def create_board(self):
         # Main container
         main_container = Frame(self)
@@ -325,12 +547,12 @@ class SudokuApp(tk.Tk):
         # Board Canvas - füllt den board_container aus
         canvas_width = self.cell_width * self.cols
         canvas_height = self.cell_height * self.rows
-        board_canvas = Canvas(board_container, width=canvas_width, height=canvas_height, highlightthickness=0)
-        board_canvas.pack(expand=True)
+        self.board_canvas = Canvas(board_container, width=canvas_width, height=canvas_height, highlightthickness=0)
+        self.board_canvas.pack(expand=True)
 
         for row in range(self.rows):
             for col in range(self.cols):
-                self.grid[row][col] = GridCell(board_canvas, row, col, width=self.cell_width, height=self.cell_height)
+                self.grid[row][col] = GridCell(self.board_canvas, row, col, width=self.cell_width, height=self.cell_height, app=self)
 
         # Sidebar (Links)
         sidebar = Frame(main_container, width=self.sidebar_width, bg=self.bg_sidebar)
@@ -394,7 +616,7 @@ class SudokuApp(tk.Tk):
             cv.pack(side=LEFT)
             
             # Temporary GridCell-like drawing
-            cell = GridCell(cv, 0, 0, width=cv_size, height=cv_size)
+            cell = GridCell(cv, 0, 0, width=cv_size, height=cv_size, app=self)
             cell.set_shape(geometry, color)
             
             Label(frame, text=label_text, font=("Arial", 9), bg="#f0f0f0", fg="#555555").pack(side=LEFT, padx=5)
@@ -433,7 +655,9 @@ class SudokuApp(tk.Tk):
         add_help_section(right_col, "STEUERUNG",
             "• Neues Spiel: Startet eine neue Runde.\n"
             "• Lösen: Lässt die KI das Rätsel lösen.\n"
-            "• Level-Slider: Stellt die Schwierigkeit (1-12) ein.")
+            "• Level-Slider: Stellt die Schwierigkeit (1-12) ein.\n"
+            "• Ziehen von Formen/Farben: Platziert diese auf dem Feld.\n"
+            "• Rechtsklick auf Feld: Löscht einen eigenen Zug.")
 
         # Buttons with style
         button_style = {"width": 18, "pady": 5, "bg": self.accent_color, "fg": "white", "font": ("Arial", 9, "bold"), "relief": "flat"}
@@ -443,6 +667,44 @@ class SudokuApp(tk.Tk):
 
         self.solve_button = Button(sidebar, text="Lösen", command=self.solve_game, **button_style)
         self.solve_button.pack(padx=10, pady=5)
+        if self.model is None:
+            self.solve_button.config(state=DISABLED)
+
+        # Manual Entry UI (Drag and Drop)
+        Label(sidebar, text="MANUELLES SETZEN", font=("Arial", 8, "bold"), bg=self.bg_sidebar, fg="#888888").pack(pady=(20, 5))
+        Label(sidebar, text="(Ziehe Form/Farbe auf Feld)", font=("Arial", 7), bg=self.bg_sidebar, fg="#666666").pack(pady=(0, 5))
+        
+        # Shapes selection
+        shapes_frame = Frame(sidebar, bg=self.bg_sidebar)
+        shapes_frame.pack(pady=5)
+        
+        for g in [Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON]:
+            # Preview canvas for shape as a draggable source
+            ps = Canvas(shapes_frame, width=30, height=30, bg=self.bg_sidebar, highlightthickness=0)
+            ps.pack(side=LEFT, padx=5)
+            cell = GridCell(ps, 0, 0, width=30, height=30, app=self)
+            cell.set_shape(g.value, Color.EMPTY.value) # Neutraler Hintergrund für Formen
+            
+            # Bind drag events to the canvas and its elements
+            ps.bind("<Button-1>", lambda e, g=g: self.start_drag(e, 'geometry', g.value))
+            ps.bind("<B1-Motion>", self.on_drag)
+            ps.bind("<ButtonRelease-1>", self.stop_drag)
+
+        # Colors selection
+        colors_frame = Frame(sidebar, bg=self.bg_sidebar)
+        colors_frame.pack(pady=5)
+        
+        for c in [Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW]:
+            # Color indicator as a draggable source
+            ps = Canvas(colors_frame, width=30, height=30, bg=self.bg_sidebar, highlightthickness=0)
+            ps.pack(side=LEFT, padx=5)
+            # Use a generic circle for color dragging
+            cell = GridCell(ps, 0, 0, width=30, height=30, app=self)
+            cell.set_shape(Geometry.CIRCLE.value, c.value)
+            
+            ps.bind("<Button-1>", lambda e, c=c: self.start_drag(e, 'color', c.value))
+            ps.bind("<B1-Motion>", self.on_drag)
+            ps.bind("<ButtonRelease-1>", self.stop_drag)
 
         # Sliders with labels
         slider_style = {"bg": self.bg_sidebar, "fg": self.fg_sidebar, "highlightthickness": 0, "orient": HORIZONTAL, "troughcolor": "#555555", "length": 160}
@@ -464,6 +726,96 @@ class SudokuApp(tk.Tk):
         self.status_bar.pack(side=BOTTOM, fill=X)
         self.status_label = Label(self.status_bar, text=" Status: Bereit", bg="#eeeeee", font=("Arial", 8))
         self.status_label.pack(side=LEFT)
+
+    def cell_clicked(self, row, col):
+        # We handle this in cell_released for Drag and Drop
+        pass
+
+    def cell_released(self, row, col):
+        if self.game_state is None or not self.dragging_item:
+            return
+        
+        item_type, value = self.dragging_item
+        curr_g, curr_c = self.game_state[row, col]
+        
+        new_g = curr_g
+        new_c = curr_c
+
+        if item_type == 'geometry':
+            new_g = value
+        else:
+            new_c = value
+        
+        target_g, target_c = self._calculate_target(row, col, new_g, new_c)
+
+        # Validate move - also check if it's different from current state
+        if self._is_move_valid(row, col, target_g, target_c):
+            # Check if something actually changed
+            if target_g != curr_g or target_c != curr_c:
+                self.game_state[row, col] = [target_g, target_c]
+                self.env.state[row, col] = [target_g, target_c]
+                self.env.invalidate_action_mask()
+                self.display_state(self.game_state)
+                
+                if FigureSudokuEnv.is_done(self.game_state):
+                    self.set_status("Gelöst! Glückwunsch!")
+                    messagebox.showinfo("Erfolg", "Du hast das Sudoku gelöst!")
+            else:
+                self.set_status("Bereit")
+        else:
+            self.set_status("Ungültiger Zug!")
+            # Clear preview when drop fails
+            self.grid[row, col].clear_preview()
+
+    def cell_right_clicked(self, row, col):
+        if self.game_state is None:
+            return
+
+        # Erstelle ein Kontextmenü
+        menu = tk.Menu(self, tearoff=0)
+        
+        curr_g, curr_c = self.game_state[row, col]
+        
+        # Zeige Löschen-Option an, wenn das Feld nicht leer ist
+        if curr_g != Geometry.EMPTY.value or curr_c != Color.EMPTY.value:
+            menu.add_command(label="Belegung löschen", command=lambda r=row, c=col: self._delete_cell_content(r, c))
+            
+        if menu.index('end') is not None: # Wenn mindestens ein Eintrag vorhanden ist
+            # Hole Mausposition
+            x = self.winfo_pointerx()
+            y = self.winfo_pointery()
+            menu.post(x, y)
+
+    def _delete_cell_content(self, row, col):
+        self.game_state[row, col] = [Geometry.EMPTY.value, Color.EMPTY.value]
+        self.env.state[row, col] = [Geometry.EMPTY.value, Color.EMPTY.value]
+        self.env.invalidate_action_mask()
+        self.display_state(self.game_state)
+        self.set_status("Bereit")
+
+    def _is_move_valid(self, row, col, g, c):
+        # Wir prüfen die Sudoku Regeln
+        # 1. Figur Einzigartigkeit im Gitter (nur wenn vollständig)
+        if g != Geometry.EMPTY.value and c != Color.EMPTY.value:
+            for r in range(self.rows):
+                for _c in range(self.cols):
+                    if r == row and _c == col: continue
+                    if self.game_state[r, _c, 0] == g and self.game_state[r, _c, 1] == c:
+                        return False
+        
+        # 2. Form Einzigartigkeit in Zeile/Spalte (nur wenn g gesetzt)
+        if g != Geometry.EMPTY.value:
+            for i in range(4):
+                if i != col and self.game_state[row, i, 0] == g: return False
+                if i != row and self.game_state[i, col, 0] == g: return False
+            
+        # 3. Farbe Einzigartigkeit in Zeile/Spalte (nur wenn c gesetzt)
+        if c != Color.EMPTY.value:
+            for i in range(4):
+                if i != col and self.game_state[row, i, 1] == c: return False
+                if i != row and self.game_state[i, col, 1] == c: return False
+            
+        return True
 
     def display_state(self, state):
         self.after(0, self._display_state, state)
@@ -493,6 +845,9 @@ class SudokuApp(tk.Tk):
         self.set_status("Löse Sudoku...")
         actions = []
         solved = False
+
+        # Aktuelle Beobachtung aus dem Environment holen (falls manuell gespielt wurde)
+        self.obs = self.env._get_obs()
 
         for move_count in range(1, config.MAX_TIMESTEPS + 1):
             if self.stop_solve:
@@ -527,8 +882,22 @@ class SudokuApp(tk.Tk):
 
 
 if __name__ == "__main__":
-    model = MaskablePPO.load(config.MODEL_PATH)
+    try:
+        model = MaskablePPO.load(config.MODEL_PATH)
+        print(f"Modell erfolgreich geladen von {config.MODEL_PATH}")
+    except Exception as e:
+        print(f"Fehler beim Laden des Modells: {e}")
+        model = None
+        
     env = FigureSudokuEnv(level=config.START_LEVEL)
         
     app = SudokuApp(model, env)
+    
+    if model is None:
+        app.after(500, lambda: messagebox.showwarning(
+            "Modell nicht gefunden", 
+            f"Das trainierte Modell konnte nicht unter '{config.MODEL_PATH}' gefunden werden.\n\n"
+            "Der 'Lösen'-Button wird deaktiviert. Du kannst das Spiel aber weiterhin manuell spielen."
+        ))
+        
     app.mainloop()
