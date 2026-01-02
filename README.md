@@ -1,5 +1,7 @@
 # 🧩 Figure-Sudoku RL-Agent
 
+<img src="./documentation/screenshot.png" width="500" alt="Figure-Sudoku Screenshot">
+
 Dieses Projekt demonstriert den Einsatz von **Reinforcement Learning** (Bestärkendes Lernen), um eine komplexe Sudoku-Variante zu lösen. Anstelle von Zahlen verwendet dieses Sudoku geometrische **Formen** und **Farben**, was die logischen Anforderungen an den Agenten erhöht.
 
 ---
@@ -85,7 +87,7 @@ In einem Standard-PPO-Algorithmus würde der Agent auch ungültige Aktionen wäh
 
 ---
 
-## 📂 Projektstruktur
+### 📂 Projektstruktur
 
 ```text
 FigureSudoku/
@@ -98,8 +100,24 @@ FigureSudoku/
 ├── 📄 visualizer.py         # Live-Visualisierung während des Trainings
 ├── 📄 callbacks.py          # Logik für Curriculum Learning & Modell-Speicherung
 ├── 📄 shapes.py             # Definitionen der Formen und Farben (Enums)
+├── 📁 documentation/        # Projekt-Dokumentation & Videos
 └── 📁 output/               # Gespeicherte Modelle, Logs und Checkpoints
 ```
+
+---
+
+## 🎬 Demo
+
+Hier siehst du den RL-Agenten in Aktion, wie er ein Figure-Sudoku schrittweise löst:
+
+<div align="center">
+  <video src="./documentation/solving_sudoku_game.mp4" width="600" controls autoplay loop muted>
+    Ihr Browser unterstützt das Video-Tag nicht.
+  </video>
+  <p><i>Agent beim Lösen eines Figure-Sudokus (RL MaskablePPO)</i></p>
+</div>
+
+> **Hinweis:** Falls das Video oben nicht automatisch startet, kannst du es direkt hier ansehen: [Demo-Video öffnen](./documentation/solving_sudoku_game.mp4)
 
 ---
 
