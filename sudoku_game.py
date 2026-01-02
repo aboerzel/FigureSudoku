@@ -1,6 +1,7 @@
 import math
 import random
 import time
+import webbrowser
 from threading import Thread
 from tkinter import *
 import tkinter as tk
@@ -623,6 +624,16 @@ class SudokuApp(tk.Tk):
             "• Ziehen von Formen/Farben: Platziert diese auf dem Feld.\n"
             "• Rechtsklick auf Feld: Öffnet Menü zum Löschen von Zügen.\n\n"
             "Autor: Andreas Börzel")
+        
+        # GitHub Link
+        github_frame = Frame(right_col, bg="#f0f0f0")
+        github_frame.pack(anchor=W)
+        Label(github_frame, text="GitHub: ", font=("Arial", 9), bg="#f0f0f0", fg="#555555").pack(side=LEFT)
+        link = Label(github_frame, text="FigureSudoku", font=("Arial", 9, "underline"), bg="#f0f0f0", fg="blue", cursor="hand2")
+        link.pack(side=LEFT)
+        link.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/aboerzel/FigureSudoku"))
+        
+        Label(right_col, text="Lizenz: MIT License", font=("Arial", 9), bg="#f0f0f0", fg="#555555").pack(anchor=W)
 
         # Buttons with style
         button_style = {"width": 18, "pady": 5, "bg": self.accent_color, "fg": "white", "font": ("Arial", 9, "bold"), "relief": "flat"}
