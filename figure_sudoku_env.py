@@ -280,6 +280,10 @@ class FigureSudokuEnv(gym.Env):
         g_val = geometry.value if hasattr(geometry, 'value') else geometry
         c_val = color.value if hasattr(color, 'value') else color
         
+        # We only check uniqueness for completed figures (both geometry and color set)
+        if g_val == Geometry.EMPTY.value or c_val == Color.EMPTY.value:
+            return True
+            
         exists = np.any((state[:, :, 0] == g_val) & (state[:, :, 1] == c_val))
         return not exists
 
@@ -301,13 +305,19 @@ class FigureSudokuEnv(gym.Env):
         # Check row, excluding the current cell
         row_state_g = np.delete(state[row, :, 0], col)
         row_state_c = np.delete(state[row, :, 1], col)
-        if np.any(row_state_g == g_val) or np.any(row_state_c == c_val):
+        
+        if g_val != Geometry.EMPTY.value and np.any(row_state_g == g_val):
+            return False
+        if c_val != Color.EMPTY.value and np.any(row_state_c == c_val):
             return False
         
         # Check column, excluding the current cell
         col_state_g = np.delete(state[:, col, 0], row)
         col_state_c = np.delete(state[:, col, 1], row)
-        if np.any(col_state_g == g_val) or np.any(col_state_c == c_val):
+        
+        if g_val != Geometry.EMPTY.value and np.any(col_state_g == g_val):
+            return False
+        if c_val != Color.EMPTY.value and np.any(col_state_c == c_val):
             return False
 
         return True

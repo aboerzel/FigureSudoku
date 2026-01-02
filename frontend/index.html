@@ -53,7 +53,18 @@
             align-items: center;
             position: relative;
         }
-        .cell.drag-over { background-color: #e0f0ff !important; border: 2px dashed #4a90e2; box-sizing: border-box; }
+        .cell.drag-over-valid { 
+            background-color: rgba(74, 226, 74, 0.2) !important; 
+            outline: 4px solid #4ae24a !important; 
+            outline-offset: -4px;
+            z-index: 20;
+        }
+        .cell.drag-over-invalid { 
+            background-color: rgba(226, 74, 74, 0.2) !important; 
+            outline: 4px solid #e24a4a !important; 
+            outline-offset: -4px;
+            z-index: 20;
+        }
         
         .svg-icon { width: 80%; height: 80%; }
         .toolbar-icon { width: 30px; height: 30px; }
@@ -73,6 +84,7 @@
             border-radius: 5px;
             background-color: rgba(0,0,0,0.05);
         }
+        .cell * { pointer-events: none; }
     </style>
 </head>
 <body>
@@ -154,42 +166,141 @@
             return "";
         }
 
-        function renderCellContent(geometry, colorVal) {
+        function renderCellContent(geometry, colorVal, opacity = 1.0) {
             if (geometry === Geometry.EMPTY && colorVal === Color.EMPTY) return "";
             if (geometry !== Geometry.EMPTY) {
-                return getSVG(geometry, colorVal, 80);
+                return getSVG(geometry, colorVal, 80, opacity);
             } else {
                 const colors = ["gray", "red", "green", "blue", "yellow"];
                 const c = colors[colorVal] || "gray";
-                return `<div class="partial-color" style="border-color: ${c};"></div>`;
+                return `<div class="partial-color" style="border-color: ${c}; opacity: ${opacity};"></div>`;
             }
         }
 
+        let draggingItem = null;
+        let currentState = null;
+
         function drag(ev, type, value) {
             debug("Start drag: " + type + " = " + value);
+            draggingItem = { type, value: parseInt(value) };
             ev.dataTransfer.setData("drag-type", type);
             ev.dataTransfer.setData("drag-value", value);
             ev.dataTransfer.effectAllowed = "move";
+            
+            // Listen for dragend to clear draggingItem
+            ev.target.addEventListener('dragend', () => {
+                draggingItem = null;
+            }, { once: true });
         }
 
-        function allowDrop(ev) {
+        function canMove(state, row, col, geometry, color) {
+            if (!state) return true;
+            
+            // Check if the combination (Figure) already exists elsewhere in the grid
+            if (geometry !== Geometry.EMPTY && color !== Color.EMPTY) {
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        if (r === row && c === col) continue;
+                        if (state[r][c][0] === geometry && state[r][c][1] === color) {
+                            debug("Invalid: Combination already exists");
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            // Row constraints (uniqueness of shape and color in row)
+            for (let i = 0; i < 4; i++) {
+                if (i === col) continue;
+                if (geometry !== Geometry.EMPTY && state[row][i][0] === geometry) {
+                    debug("Invalid: Shape already in row");
+                    return false;
+                }
+                if (color !== Color.EMPTY && state[row][i][1] === color) {
+                    debug("Invalid: Color already in row");
+                    return false;
+                }
+            }
+
+            // Column constraints (uniqueness of shape and color in column)
+            for (let i = 0; i < 4; i++) {
+                if (i === row) continue;
+                if (geometry !== Geometry.EMPTY && state[i][col][0] === geometry) {
+                    debug("Invalid: Shape already in column");
+                    return false;
+                }
+                if (color !== Color.EMPTY && state[i][col][1] === color) {
+                    debug("Invalid: Color already in column");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function onDragOver(ev, r, c) {
             ev.preventDefault();
-            ev.dataTransfer.dropEffect = "move";
+            if (!draggingItem) return;
+
+            // Verhindere redundante Berechnungen und Flackern
+            const hoverKey = draggingItem.type + draggingItem.value;
+            if (ev.currentTarget.dataset.lastHover === hoverKey) {
+                return;
+            }
+            ev.currentTarget.dataset.lastHover = hoverKey;
+
+            const curr = currentState[r][c];
+            let nextG = curr[0];
+            let nextC = curr[1];
+
+            if (draggingItem.type === 'geometry') nextG = draggingItem.value;
+            else if (draggingItem.type === 'color') nextC = draggingItem.value;
+            else if (draggingItem.type === 'delete') { nextG = 0; nextC = 0; }
+
+            const valid = (draggingItem.type === 'delete') || canMove(currentState, r, c, nextG, nextC);
+            
+            // Erst Klassen setzen, dann Content (um Layout-Thrashing zu minimieren)
+            ev.currentTarget.classList.remove("drag-over-valid", "drag-over-invalid");
+            ev.currentTarget.classList.add(valid ? "drag-over-valid" : "drag-over-invalid");
+            
+            // Visual Preview nur setzen wenn nötig
+            const previewHtml = renderCellContent(nextG, nextC, 0.4);
+            if (ev.currentTarget.innerHTML !== previewHtml) {
+                ev.currentTarget.innerHTML = previewHtml;
+            }
         }
 
         function handleDrop(ev, r, c) {
             ev.preventDefault();
-            const type = ev.dataTransfer.getData("drag-type");
-            const valueStr = ev.dataTransfer.getData("drag-value");
+            
+            // Versuche Daten aus verschiedenen Quellen zu lesen
+            const type = ev.dataTransfer.getData("drag-type") || (draggingItem ? draggingItem.type : null);
+            const valueStr = ev.dataTransfer.getData("drag-value") || (draggingItem ? draggingItem.value.toString() : null);
             
             debug("Dropped: " + type + " (" + valueStr + ") on " + r + "," + c);
             
-            if (!type) {
-                debug("Error: No drag-type found in dataTransfer");
+            if (!type || valueStr === null) {
+                debug("Error: No drop data found");
+                updateGrid(currentState);
                 return;
             }
 
             const value = parseInt(valueStr);
+            
+            // Strikte Validierung vor dem Absenden
+            if (type !== 'delete') {
+                const curr = currentState[r][c];
+                let nextG = curr[0];
+                let nextC = curr[1];
+                if (type === 'geometry') nextG = value;
+                else if (type === 'color') nextC = value;
+                
+                if (!canMove(currentState, r, c, nextG, nextC)) {
+                    debug("Drop rejected: Invalid move");
+                    onDragLeave(ev, r, c); // Visuelles Feedback zurücksetzen
+                    return;
+                }
+            }
             
             sendMessage({
                 row: r,
@@ -199,19 +310,29 @@
                 timestamp: Date.now()
             });
             
-            ev.currentTarget.classList.remove("drag-over");
+            draggingItem = null;
+            ev.currentTarget.classList.remove("drag-over-valid", "drag-over-invalid");
+            delete ev.currentTarget.dataset.lastHover;
         }
 
-        function onDragEnter(ev) {
+        function onDragEnter(ev, r, c) {
             ev.preventDefault();
-            ev.currentTarget.classList.add("drag-over");
         }
 
-        function onDragLeave(ev) {
-            ev.currentTarget.classList.remove("drag-over");
+        function onDragLeave(ev, r, c) {
+            ev.currentTarget.classList.remove("drag-over-valid", "drag-over-invalid");
+            delete ev.currentTarget.dataset.lastHover;
+            
+            // Restore original content
+            if (currentState && currentState[r] && currentState[r][c]) {
+                const curr = currentState[r][c];
+                ev.currentTarget.innerHTML = renderCellContent(curr[0], curr[1]);
+            }
         }
 
         function updateGrid(state) {
+            if (!state) return;
+            currentState = state;
             const gridDiv = document.getElementById('grid');
             gridDiv.innerHTML = '';
             
@@ -221,12 +342,12 @@
                     cell.className = 'cell';
                     if ((r + c) % 2 === 0) cell.style.backgroundColor = '#f9f9f9';
                     
-                    cell.ondragover = allowDrop;
+                    cell.ondragover = (ev) => onDragOver(ev, r, c);
                     cell.ondrop = (ev) => handleDrop(ev, r, c);
-                    cell.ondragenter = onDragEnter;
-                    cell.ondragleave = onDragLeave;
+                    cell.ondragenter = (ev) => onDragEnter(ev, r, c);
+                    cell.ondragleave = (ev) => onDragLeave(ev, r, c);
                     
-                    if (state && state[r] && state[r][c]) {
+                    if (state[r] && state[r][c]) {
                         const content = renderCellContent(state[r][c][0], state[r][c][1]);
                         cell.innerHTML = content;
                     }

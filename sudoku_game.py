@@ -572,19 +572,20 @@ class SudokuApp(tk.Tk):
             if text:
                 Label(parent, text=text, font=("Arial", 9), bg="#f0f0f0", fg="#555555", justify=LEFT, wraplength=col_width).pack(anchor=W, pady=(0, 5))
 
-        def add_visual_example(parent, geometry, color, label_text):
+        def add_visual_example(parent, geometry, color, label_text=None):
             frame = Frame(parent, bg="#f0f0f0")
-            frame.pack(anchor=W, pady=2, fill=X)
+            frame.pack(side=LEFT, anchor=N, pady=2, padx=2)
             
-            cv_size = 25
+            cv_size = 24
             cv = Canvas(frame, width=cv_size, height=cv_size, bg="#f0f0f0", highlightthickness=0)
-            cv.pack(side=LEFT)
+            cv.pack(side=TOP)
             
             # Temporary GridCell-like drawing
             cell = GridCell(cv, 0, 0, width=cv_size, height=cv_size, app=self)
             cell.set_shape(geometry, color)
             
-            Label(frame, text=label_text, font=("Arial", 9), bg="#f0f0f0", fg="#555555").pack(side=LEFT, padx=5)
+            if label_text:
+                Label(frame, text=label_text, font=("Arial", 8), bg="#f0f0f0", fg="#555555").pack(side=TOP, pady=(2,0))
 
         # Linke Spalte (1)
         add_help_section(left_col, "DAS SPIELPRINZIP", 
@@ -600,22 +601,28 @@ class SudokuApp(tk.Tk):
 
         # Mittlere Spalte (2)
         add_help_section(mid_col, "FORMEN")
-        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.EMPTY.value, "Kreis")
-        add_visual_example(mid_col, Geometry.QUADRAT.value, Color.EMPTY.value, "Quadrat")
-        add_visual_example(mid_col, Geometry.TRIANGLE.value, Color.EMPTY.value, "Dreieck")
-        add_visual_example(mid_col, Geometry.HEXAGON.value, Color.EMPTY.value, "Hexagon")
+        f_frame = Frame(mid_col, bg="#f0f0f0")
+        f_frame.pack(fill=X)
+        add_visual_example(f_frame, Geometry.CIRCLE.value, Color.EMPTY.value)
+        add_visual_example(f_frame, Geometry.QUADRAT.value, Color.EMPTY.value)
+        add_visual_example(f_frame, Geometry.TRIANGLE.value, Color.EMPTY.value)
+        add_visual_example(f_frame, Geometry.HEXAGON.value, Color.EMPTY.value)
 
         add_help_section(mid_col, "FARBEN")
-        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.RED.value, "Rot")
-        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.GREEN.value, "Grün")
-        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.BLUE.value, "Blau")
-        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.YELLOW.value, "Gelb")
+        c_frame = Frame(mid_col, bg="#f0f0f0")
+        c_frame.pack(fill=X)
+        add_visual_example(c_frame, Geometry.CIRCLE.value, Color.RED.value)
+        add_visual_example(c_frame, Geometry.CIRCLE.value, Color.GREEN.value)
+        add_visual_example(c_frame, Geometry.CIRCLE.value, Color.BLUE.value)
+        add_visual_example(c_frame, Geometry.CIRCLE.value, Color.YELLOW.value)
 
         # Rechte Spalte (3)
-        add_help_section(right_col, "TEILBELEGUNGEN (Level 11+)",
-            "Manchmal sind Felder nur teilweise vorgegeben:")
-        add_visual_example(right_col, Geometry.CIRCLE.value, Color.EMPTY.value, "Farbe fehlt")
-        add_visual_example(right_col, Geometry.EMPTY.value, Color.RED.value, "Form fehlt")
+        add_help_section(right_col, "TEILBELEGUNGEN",
+            "Ab Level 11 sind Felder teilweise vorgegeben:")
+        t_frame = Frame(right_col, bg="#f0f0f0")
+        t_frame.pack(fill=X)
+        add_visual_example(t_frame, Geometry.CIRCLE.value, Color.EMPTY.value)
+        add_visual_example(t_frame, Geometry.EMPTY.value, Color.RED.value)
 
         add_help_section(right_col, "STEUERUNG",
             "• Neues Spiel: Startet eine neue Runde.\n"
