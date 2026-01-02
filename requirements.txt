@@ -7,3 +7,4 @@ sb3-contrib>=2.0.0
 gymnasium
 tensorboard
 shimmy>=0.2.1
+streamlit
