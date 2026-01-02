@@ -93,7 +93,8 @@ FigureSudoku/
 ├── 📄 train.py              # Hauptskript zum Starten des KI-Trainings
 ├── 📄 figure_sudoku_env.py  # Die Gymnasium-Umgebung (Logik & Rewards)
 ├── 📄 sudoku_generator.py   # Hochoptimierter Generator mit HCDS-Metrik & Eindeutigkeitsprüfung
-├── 📄 sudoku_game.py        # Grafische Oberfläche zum Spielen & Evaluieren
+├── 📄 sudoku_game.py        # Grafische Desktop-Oberfläche (Tkinter)
+├── 📄 streamlit_app.py      # Moderne Web-Applikation (Streamlit)
 ├── 📄 visualizer.py         # Live-Visualisierung während des Trainings
 ├── 📄 callbacks.py          # Logik für Curriculum Learning & Modell-Speicherung
 ├── 📄 shapes.py             # Definitionen der Formen und Farben (Enums)
@@ -136,8 +137,12 @@ Das Belohnungssystem ist darauf ausgelegt, den Agenten zu einem effizienten und 
 
 ---
 
-## 🖼️ Visualisierung
-*   `RENDER_GUI`: Aktiviert die Live-Anzeige der Agenten während des Trainings. [Werte: `True`, `False`]
+## 🖼️ Visualisierung (Training)
+
+Während des Trainings kann der Fortschritt auf zwei Arten visualisiert werden:
+
+*   **Live-GUI:** Wenn `config.RENDER_GUI = True` gesetzt ist, wird der Spielzustand der Agenten live in einem Fenster (`visualizer.py`) angezeigt.
+*   **TensorBoard:** Detaillierte Metriken (Reward, Erfolgsquote, Training-Loss) werden geloggt.
 
 ---
 
@@ -180,22 +185,39 @@ tensorboard --logdir output/SUDOKU/logs/train --port 6006
 
 ---
 
-## 🎮 Den Agenten beobachten (Test/Demo)
+## 🎮 Spielen & Den Agenten beobachten
 
-Wenn du sehen möchtest, wie die trainierte KI ein Rätsel löst, kannst du die GUI nutzen:
+Es stehen zwei Oberflächen zur Verfügung, um das Spiel selbst zu spielen oder die KI beim Lösen zu beobachten.
 
-1.  Stelle sicher, dass ein trainiertes Modell im `output`-Ordner liegt (siehe `config.MODEL_PATH`).
-2.  Starte das Spiel:
+### 🌐 Web-Applikation (Streamlit) - Empfohlen
+Eine moderne, interaktive Weboberfläche, die im Browser läuft.
+```bash
+streamlit run streamlit_app.py
+```
+
+### 🖥️ Desktop-Anwendung (Tkinter)
+Die klassische Version mit Drag & Drop Funktionalität.
 ```bash
 python sudoku_game.py
 ```
-3.  Wähle den Schwierigkeitsgrad über den **"Level"-Slider** aus.
-4.  Klicke auf **"New Game"** und dann auf **"Solve"**, um den Agenten beim Lösen zuzusehen.
+
+### Anleitung:
+1.  Stelle sicher, dass ein trainiertes Modell im `output`-Ordner liegt (siehe `config.MODEL_PATH`).
+2.  Wähle den Schwierigkeitsgrad über den **"Level"-Slider** aus.
+3.  Klicke auf **"New Game"** (oder generiere ein neues Rätsel).
+4.  Klicke auf **"Solve"**, um den Agenten beim Lösen zuzusehen, oder spiele selbst!
 
 ---
 
-## 📊 Visualisierung des Trainings
-Wenn in der `config.py` der Parameter `RENDER_GUI = True` gesetzt ist, öffnet das Training für jeden Agenten ein eigenes Fenster. So kannst du live beobachten, wie die KI verschiedene Strategien ausprobiert.
+## 📊 Visualisierung des Trainings (Live)
+Wenn in der `config.py` der Parameter `RENDER_GUI = True` gesetzt ist, öffnet das Training für jeden Agenten ein eigenes Fenster (`visualizer.py`). So kannst du live beobachten, wie die KI verschiedene Strategien ausprobiert.
 
 ---
+
+## 📄 Lizenz & Autor
+
+*   **Autor:** Andreas Börzel
+*   **GitHub:** [FigureSudoku](https://github.com/aboerzel/FigureSudoku)
+*   **Lizenz:** [MIT License](LICENSE) (oder siehe Dateikopf)
+
 *Entwickelt als Experimentierfeld für Reinforcement Learning in komplexen Constraint-Umgebungen.*
