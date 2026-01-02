@@ -2,240 +2,240 @@
 
 <img src="./documentation/screenshot.png" width="500" alt="Figure-Sudoku Screenshot">
 
-Dieses Projekt demonstriert den Einsatz von **Reinforcement Learning** (Bestärkendes Lernen), um eine komplexe Sudoku-Variante zu lösen. Anstelle von Zahlen verwendet dieses Sudoku geometrische **Formen** und **Farben**, was die logischen Anforderungen an den Agenten erhöht.
+This project demonstrates the use of **Reinforcement Learning** to solve a complex Sudoku variant. Instead of numbers, this Sudoku uses geometric **shapes** and **colors**, increasing the logical requirements for the agent.
 
 ---
 
-## 🎨 Das Spielkonzept
+## 🎨 Game Concept
 
-Das **Figure-Sudoku** basiert auf einem 4x4-Gitter. Jedes Feld muss eine eindeutige Kombination aus einer Form und einer Farbe enthalten.
+**Figure-Sudoku** is based on a 4x4 grid. Each cell must contain a unique combination of a shape and a color.
 
-### Die Attribute:
-*   **Geometrien:** 🔵 Kreis, 🟥 Quadrat, ▲ Dreieck, ⬢ Hexagon
-*   **Farben:** ❤️ Rot, 💚 Grün, 💙 Blau, 💛 Gelb
+### Attributes:
+*   **Geometries:** 🔵 Circle, 🟥 Square, ▲ Triangle, ⬢ Hexagon
+*   **Colors:** ❤️ Red, 💚 Green, 💙 Blue, 💛 Yellow
 
-### Die Regeln:
-1.  Jedes Feld muss eine Figur (Form + Farbe) enthalten.
-2.  In jeder **Reihe** und jeder **Spalte** darf jede Form nur einmal vorkommen.
-3.  In jeder **Reihe** und jeder **Spalte** darf jede Farbe nur einmal vorkommen.
-4.  Jede Kombination (z.B. "Roter Kreis") darf im gesamten Gitter nur einmal existieren.
-5.  **Teilvorgaben:** Es ist möglich, dass Felder nur mit einer Form (ohne Farbe) oder nur mit einer Farbe (ohne Form) vorbelegt sind. Der Agent muss dann die jeweils fehlende Komponente logisch korrekt ergänzen.
-
----
-
-## 🚀 Die KI-Architektur
-
-Der Agent nutzt modernste Deep-Learning-Techniken, um die Spielregeln von Grund auf zu lernen:
-
-*   **Bibliotheken:** Nutzt **Stable Baselines3 (v2.0+)** und **Gymnasium**, die aktuelle Standard-Schnittstelle für Reinforcement Learning.
-*   **Algorithmus:** `MaskablePPO` (Proximal Policy Optimization). Dank **Action Masking** lernt der Agent keine ungültigen Züge, was das Training massiv beschleunigt.
-*   **CNN (Convolutional Neural Network) mit Residual Blocks (ResNet):** Da Sudoku-Regeln auf räumlichen Abhängigkeiten (Zeilen/Spalten) basieren, nutzt der Agent Faltungsschichten. ResNet-Blöcke helfen dabei, auch tieferliegende Abhängigkeiten ohne Informationsverlust zu lernen.
-*   **Observation Space:** Ein 3D-Tensor (10 Kanäle), der One-Hot-kodiert die Positionen aller Formen und Farben repräsentiert (flattened auf 160 Eingänge).
-*   **Action Space:** Insgesamt 256 diskrete Aktionen. Jede Aktion entspricht der Kombination aus einer bestimmten Figur (16 Möglichkeiten) und einem Zielfeld (16 Felder).
-*   **Action Masking:** Da in jedem Zustand nur wenige der 256 Aktionen regelkonform sind, nutzt das Projekt **Action Masking**. Dies verhindert, dass der Agent ungültige Züge (z.B. doppelte Farbe in einer Reihe) überhaupt in Erwägung zieht. Dies reduziert den Suchraum dramatisch und stabilisiert das Training (siehe Abschnitt [Action Masking](#-action-masking-detailerklärung)).
-*   **Curriculum Learning:** Das Training startet bei Level 1 (fast gelöst) und steigert automatisch den Schwierigkeitsgrad bis Level 12 (viele leere Felder), sobald der Agent eine definierte Erfolgsquote (einstellbar über `REWARD_THRESHOLD`) erreicht.
-*   **Fortsetzbarkeit:** Das Training erkennt automatisch vorhandene Modelle. Das Start-Level wird primär über `START_LEVEL` in der `config.py` gesteuert. Ist dieser Wert auf `None` gesetzt, wird das Level automatisch aus dem letzten Log-Eintrag (`LOG_FILE_PATH`) ermittelt (mit Fallback auf Level 1).
-*   **Rätsel-Generator:** Die Rätsel werden mithilfe eines hochoptimierten Backtracking-Algorithmus generiert (`sudoku_generator.py`). Dieser nutzt die **HCDS-Metrik** (Human-Centric Difficulty System), um gezielt Schwierigkeitsgrade von Level 1 bis 12 zu erzeugen, die das menschliche Schwierigkeitsempfinden abbilden. Er stellt sicher, dass jede Aufgabe eine eindeutige Lösung besitzt. Ab Level 11 werden zudem Teilvorgaben (Partial Shapes) unterstützt.
+### Rules:
+1.  Each cell must contain a figure (shape + color).
+2.  In each **row** and each **column**, each shape may only appear once.
+3.  In each **row** and each **column**, each color may only appear once.
+4.  Each combination (e.g., "Red Circle") may only exist once in the entire grid.
+5.  **Partial specifications:** It is possible for cells to be pre-filled with only a shape (without color) or only a color (without shape). The agent must then logically complete the missing component.
 
 ---
 
-## 🧠 Funktionsweise des Agenten
+## 🚀 AI Architecture
 
-Der Lösungsprozess folgt einem klassischen RL-Zyklus:
+The agent uses state-of-the-art deep learning techniques to learn the game rules from scratch:
 
-1.  **Beobachtung:** Der Agent sieht das aktuelle 4x4-Gitter als One-Hot-Vektor.
-2.  **Maskierung:** Die Umgebung berechnet alle regelkonformen Züge basierend auf den Sudoku-Regeln.
-3.  **Entscheidung:** Das neuronale Netz bewertet die validen Aktionen und wählt die Erfolgversprechendste aus.
-4.  **Belohnung:** Für jeden korrekten Zug erhält der Agent einen kleinen Reward. Das Lösen des gesamten Rätsels gibt einen großen Bonus.
-5.  **Lernen:** Über PPO optimiert der Agent seine Strategie, um die kumulierte Belohnung zu maximieren.
-
----
-
-## 🧩 Rätsel-Generator & Schwierigkeit (HCDS)
-
-Der neue Generator (`sudoku_generator.py`) basiert auf dem **Human-Centric Difficulty System (HCDS)**. Er wurde speziell optimiert, um das menschliche Schwierigkeitsempfinden in den Level-Stufen 1-12 abzubilden und auch bei hohen Schwierigkeitsgraden eine schnelle Rätsel-Generierung (ca. 3s für Level 12) bei garantierter Eindeutigkeit zu ermöglichen.
-
-### Schwierigkeitsstufen (1-12):
-*   **Level 1-10:** Die Schwierigkeit skaliert linear durch das Entfernen von Feldern, bis der Ziel-HCDS-Wert erreicht ist.
-*   **Level 11:** Enthält zusätzlich **eine Teilvorgabe** (nur Form oder nur Farbe).
-*   **Level 12:** Enthält **zwei Teilvorgaben**.
-
-### Performance-Features:
-*   **MRV-Heuristik (Minimum Remaining Values):** Beschleunigt die Eindeutigkeitsprüfung durch intelligente Wahl des nächsten Feldes im Backtracking.
-*   **In-Place Backtracking:** Minimiert Speicherallokationen und CPU-Last.
-*   **Inkrementelle HCDS-Berechnung:** Effiziente Bewertung der Schwierigkeit während des Generierungsprozesses.
+*   **Libraries:** Uses **Stable Baselines3 (v2.0+)** and **Gymnasium**, the current standard interface for Reinforcement Learning.
+*   **Algorithm:** `MaskablePPO` (Proximal Policy Optimization). Thanks to **Action Masking**, the agent does not learn invalid moves, which massively accelerates training.
+*   **CNN (Convolutional Neural Network) with Residual Blocks (ResNet):** Since Sudoku rules are based on spatial dependencies (rows/columns), the agent uses convolutional layers. ResNet blocks help learn deeper dependencies without loss of information.
+*   **Observation Space:** A 3D tensor (10 channels) representing the positions of all shapes and colors in one-hot encoding (flattened to 160 inputs).
+*   **Action Space:** A total of 256 discrete actions. Each action corresponds to the combination of a specific figure (16 possibilities) and a target cell (16 cells).
+*   **Action Masking:** Since only a few of the 256 actions are compliant with the rules in any state, the project uses **Action Masking**. This prevents the agent from even considering invalid moves (e.g., duplicate color in a row). This dramatically reduces the search space and stabilizes training (see section [Action Masking (Detailed Explanation)](#-action-masking-detailed-explanation)).
+*   **Curriculum Learning:** Training starts at Level 1 (almost solved) and automatically increases the difficulty up to Level 12 (many empty cells) once the agent reaches a defined success rate (adjustable via `REWARD_THRESHOLD`).
+*   **Resumability:** Training automatically detects existing models. The starting level is primarily controlled via `START_LEVEL` in `config.py`. If this value is set to `None`, the level is automatically determined from the last log entry (`LOG_FILE_PATH`) (with fallback to Level 1).
+*   **Puzzle Generator:** Puzzles are generated using a highly optimized backtracking algorithm (`sudoku_generator.py`). This uses the **HCDS metric** (Human-Centric Difficulty System) to specifically generate difficulty levels from 1 to 12 that reflect human perception of difficulty. It ensures that every puzzle has a unique solution. From Level 11 onwards, partial specifications (Partial Shapes) are also supported.
 
 ---
 
-## 🛡️ Action Masking (Detailerklärung)
+## 🧠 How the Agent Works
 
-Action Masking ist eine entscheidende Technik für die Effizienz dieses Agenten. Da der Action Space mit **256 Aktionen** sehr groß ist, aber in jedem Spielzustand oft nur **weniger als 5%** der Züge legal sind, würde ein Standard-RL-Agent extrem lange brauchen, um allein die Grundregeln (z.B. "nicht zweimal Rot in eine Spalte") durch reines Ausprobieren (*Trial & Error*) zu lernen.
+The solution process follows a classic RL cycle:
 
-### Wie es funktioniert:
-Bevor der Agent eine Aktion auswählt, berechnet die Umgebung (`FigureSudokuEnv.action_masks()`) einen binären Vektor (die Maske). Für jede der 256 Aktionen wird geprüft:
-
-1.  **Feldbelegung:** Ist das Zielfeld bereits mit einer anderen Figur belegt? (Oder passt die gewählte Figur zu einer bestehenden Teilvorgabe?)
-2.  **Figur-Verfügbarkeit:** Wurde die Kombination aus Form und Farbe (z.B. "Blauer Kreis") bereits an einer anderen Stelle im Gitter platziert?
-3.  **Sudoku-Constraints (Reihe/Spalte):** Existiert die gewählte Form oder die gewählte Farbe bereits in der Ziel-Reihe oder Ziel-Spalte?
-
-### Warum MaskablePPO?
-In einem Standard-PPO-Algorithmus würde der Agent auch ungültige Aktionen wählen, eine negative Belohnung erhalten und dann mühsam lernen, diese Aktionen zu vermeiden.
-**MaskablePPO** hingegen nutzt die Maske direkt in der Wahrscheinlichkeitsverteilung der Policy:
-*   Ungültige Aktionen erhalten eine Wahrscheinlichkeit von **exakt Null**.
-*   Der Agent "sieht" während der Entscheidungsfindung nur die legalen Optionen.
-*   **Vorteil:** Das neuronale Netz muss keine Kapazität darauf verschwenden, die harten Regeln des Spiels auswendig zu lernen, sondern kann sich sofort auf die **Lösungsstrategie** konzentrieren.
+1.  **Observation:** The agent sees the current 4x4 grid as a one-hot vector.
+2.  **Masking:** The environment calculates all rule-compliant moves based on the Sudoku rules.
+3.  **Decision:** The neural network evaluates the valid actions and selects the most promising one.
+4.  **Reward:** The agent receives a small reward for each correct move. Solving the entire puzzle gives a large bonus.
+5.  **Learning:** Via PPO, the agent optimizes its strategy to maximize the cumulative reward.
 
 ---
 
-### 📂 Projektstruktur
+## 🧩 Puzzle Generator & Difficulty (HCDS)
+
+The new generator (`sudoku_generator.py`) is based on the **Human-Centric Difficulty System (HCDS)**. It has been specifically optimized to reflect human perception of difficulty across levels 1-12 and to enable fast puzzle generation (approx. 3s for Level 12) even at high difficulty levels while guaranteeing uniqueness.
+
+### Difficulty Levels (1-12):
+*   **Levels 1-10:** Difficulty scales linearly by removing cells until the target HCDS value is reached.
+*   **Level 11:** Additionally contains **one partial specification** (only shape or only color).
+*   **Level 12:** Contains **two partial specifications**.
+
+### Performance Features:
+*   **MRV Heuristic (Minimum Remaining Values):** Speeds up uniqueness testing through intelligent selection of the next cell in backtracking.
+*   **In-Place Backtracking:** Minimizes memory allocations and CPU load.
+*   **Incremental HCDS Calculation:** Efficient assessment of difficulty during the generation process.
+
+---
+
+## 🛡️ Action Masking (Detailed Explanation)
+
+Action Masking is a crucial technique for the efficiency of this agent. Since the Action Space is very large with **256 actions**, but often **less than 5%** of the moves are legal in any game state, a standard RL agent would take an extremely long time to learn even the basic rules (e.g., "no red twice in a column") through pure *trial & error*.
+
+### How it works:
+Before the agent selects an action, the environment (`FigureSudokuEnv.action_masks()`) calculates a binary vector (the mask). For each of the 256 actions, it checks:
+
+1.  **Cell Occupancy:** Is the target cell already occupied by another figure? (Or does the chosen figure match an existing partial specification?)
+2.  **Figure Availability:** Has the combination of shape and color (e.g., "Blue Circle") already been placed elsewhere in the grid?
+3.  **Sudoku Constraints (Row/Column):** Does the chosen shape or color already exist in the target row or target column?
+
+### Why MaskablePPO?
+In a standard PPO algorithm, the agent would also choose invalid actions, receive a negative reward, and then laboriously learn to avoid these actions.
+**MaskablePPO**, on the other hand, uses the mask directly in the probability distribution of the policy:
+*   Invalid actions receive a probability of **exactly zero**.
+*   The agent "sees" only the legal options during decision-making.
+*   **Advantage:** The neural network does not have to waste capacity learning the hard rules of the game, but can immediately concentrate on the **solution strategy**.
+
+---
+
+### 📂 Project Structure
 
 ```text
 FigureSudoku/
-├── 📄 config.py             # Zentrale Konfiguration (Hyperparameter, Level, etc.)
-├── 📄 train.py              # Hauptskript zum Starten des KI-Trainings
-├── 📄 figure_sudoku_env.py  # Die Gymnasium-Umgebung (Logik & Rewards)
-├── 📄 sudoku_generator.py   # Hochoptimierter Generator mit HCDS-Metrik & Eindeutigkeitsprüfung
-├── 📄 sudoku_game.py        # Grafische Desktop-Oberfläche (Tkinter)
-├── 📄 streamlit_app.py      # Moderne Web-Applikation (Streamlit)
-├── 📄 visualizer.py         # Live-Visualisierung während des Trainings
-├── 📄 callbacks.py          # Logik für Curriculum Learning & Modell-Speicherung
-├── 📄 shapes.py             # Definitionen der Formen und Farben (Enums)
-├── 📁 documentation/        # Projekt-Dokumentation & Videos
-└── 📁 output/               # Gespeicherte Modelle, Logs und Checkpoints
+├── 📄 config.py             # Central configuration (hyperparameters, levels, etc.)
+├── 📄 train.py              # Main script to start AI training
+├── 📄 figure_sudoku_env.py  # The Gymnasium environment (logic & rewards)
+├── 📄 sudoku_generator.py   # Highly optimized generator with HCDS metric & uniqueness check
+├── 📄 sudoku_game.py        # Graphical desktop interface (Tkinter)
+├── 📄 streamlit_app.py      # Modern web application (Streamlit)
+├── 📄 visualizer.py         # Live visualization during training
+├── 📄 callbacks.py          # Logic for curriculum learning & model saving
+├── 📄 shapes.py             # Definitions of shapes and colors (Enums)
+├── 📁 documentation/        # Project documentation & videos
+└── 📁 output/               # Saved models, logs, and checkpoints
 ```
 
 ---
 
 ## 🎬 Demo
 
-Hier siehst du den RL-Agenten in Aktion, wie er ein Figure-Sudoku schrittweise löst:
+Here you can see the RL agent in action as it solves a Figure-Sudoku step-by-step:
 
 <div align="center">
   <video src="./documentation/solving_sudoku_game.mp4" width="600" controls autoplay loop muted>
-    Ihr Browser unterstützt das Video-Tag nicht.
+    Your browser does not support the video tag.
   </video>
-  <p><i>Agent beim Lösen eines Figure-Sudokus (RL MaskablePPO)</i></p>
+  <p><i>Agent solving a Figure-Sudoku (RL MaskablePPO)</i></p>
 </div>
 
-> **Hinweis:** Falls das Video oben nicht automatisch startet, kannst du es direkt hier ansehen: [Demo-Video öffnen](./documentation/solving_sudoku_game.mp4)
+> **Note:** If the video above does not start automatically, you can view it directly here: [Open Demo Video](./documentation/solving_sudoku_game.mp4)
 
 ---
 
-## ⚙️ Konfiguration (`config.py`)
+## ⚙️ Configuration (`config.py`)
 
-Die zentralen Einstellungen des Projekts werden in der `config.py` vorgenommen. Hier eine Übersicht der wichtigsten Parameter:
+The central settings of the project are made in `config.py`. Here is an overview of the most important parameters:
 
-### 🧩 Generator (Rätsel-Erstellung)
-*   `START_LEVEL`: Bestimmt das Start-Level für das Training. Wenn ein Wert (1-12) angegeben ist, wird dieser fest verwendet (manuelles Überschreiben). Ist `None` gesetzt, wird das Level beim Fortsetzen eines Trainings automatisch aus der Log-Datei ermittelt (Fallback: Level 1). [Bereich: `1` bis `12` oder `None`]
-*   `MAX_LEVEL`: Das Ziel-Level (höchste Schwierigkeit). [Bereich: `1` bis `12`]
+### 🧩 Generator (Puzzle Creation)
+*   `START_LEVEL`: Determines the starting level for training. If a value (1-12) is specified, it is used fixed (manual override). If set to `None`, the level is automatically determined from the log file when resuming training (fallback: Level 1). [Range: `1` to `12` or `None`]
+*   `MAX_LEVEL`: The target level (highest difficulty). [Range: `1` to `12`]
 
-### ⚡ Training & Hyperparameter
-*   `NUM_AGENTS`: Anzahl der parallelen Trainings-Umgebungen. [Bereich: `>= 1`]
-*   `REWARD_THRESHOLD`: Die benötigte Erfolgsquote (z.B. `0.90` für 90%), um in das nächste Level aufzusteigen. [Bereich: `0.0` bis `1.0`]
-*   `CHECK_FREQ`: Intervall (in Schritten), in dem die Erfolgsquote geprüft und Modelle zwischengespeichert werden. [Bereich: `>= 1`]
-*   `TOTAL_TIMESTEPS`: Die Gesamtdauer des Trainings (Gesamtzahl der Schritte über alle Agenten). [Bereich: `>= 1`]
-*   `MAX_TIMESTEPS`: Maximale Anzahl an Schritten pro Episode. Verhindert Endlosschleifen bei unlösbaren Zuständen.
+### ⚡ Training & Hyperparameters
+*   `NUM_AGENTS`: Number of parallel training environments. [Range: `>= 1`]
+*   `REWARD_THRESHOLD`: The required success rate (e.g., `0.90` for 90%) to advance to the next level. [Range: `0.0` to `1.0`]
+*   `CHECK_FREQ`: Interval (in steps) at which the success rate is checked and models are cached. [Range: `>= 1`]
+*   `TOTAL_TIMESTEPS`: Total duration of training (total number of steps across all agents). [Range: `>= 1`]
+*   `MAX_TIMESTEPS`: Maximum number of steps per episode. Prevents infinite loops in unsolvable states.
 
-### 🏆 Belohnungssystem (Rewards)
+### 🏆 Reward System
 
-Das Belohnungssystem ist darauf ausgelegt, den Agenten zu einem effizienten und regelkonformen Lösungsweg zu führen. Es besteht aus drei Hauptkomponenten:
+The reward system is designed to guide the agent towards an efficient and rule-compliant solution path. It consists of three main components:
 
-1.  **`REWARD_SOLVED` (Aktuell: `10.0`)**:
-    *   **Zweck:** Der "Heilige Gral". Dies ist die maximale Belohnung, die der Agent erhält, wenn das gesamte Gitter regelkonform gefüllt ist.
-    *   **Warum dieser Wert?** Er muss deutlich höher sein als die Summe der Einzelzüge, damit der Agent das übergeordnete Ziel (das Lösen) priorisiert. Selbst auf dem höchsten Schwierigkeitsgrad (Level 12) beträgt die Summe aller validen Einzelzug-Belohnungen nur ca. `2.45`, was bedeutet, dass der `REWARD_SOLVED` (10.0) immer noch mehr als das Vierfache davon wert ist. Dies stellt sicher, dass der Agent auch bei komplexen Rätseln stets motiviert bleibt, das Rätsel vollständig zu lösen.
+1.  **`REWARD_SOLVED` (Current: `10.0`)**:
+    *   **Purpose:** The "Holy Grail". This is the maximum reward the agent receives when the entire grid is filled in compliance with the rules.
+    *   **Why this value?** It must be significantly higher than the sum of individual moves so that the agent prioritizes the overall goal (solving). Even at the highest difficulty level (Level 12), the sum of all valid individual move rewards is only about `2.45`, which means that `REWARD_SOLVED` (10.0) is still worth more than four times that. This ensures that the agent remains motivated to solve the puzzle completely even with complex puzzles.
 
-2.  **`REWARD_VALID_MOVE_BASE` (Aktuell: `0.1`)**:
-    *   **Zweck:** Belohnung für jeden korrekten Zug.
-    *   **Dynamische Skalierung:** Die tatsächliche Belohnung berechnet sich als: `base * (1 + leere_felder / gitter_größe)`.
-    *   **Warum diese Logik?** Durch die Skalierung erhält der Agent für Züge auf einem leeren Board (wo es viele Möglichkeiten gibt) eine höhere Belohnung als für Züge auf einem fast vollen Board. Dies motiviert den Agenten, "schwierige" Entscheidungen frühzeitig korrekt zu treffen. Der Basiswert von `0.1` ist klein genug, um "Reward Shaping" zu ermöglichen, ohne das Endziel zu überschatten.
+2.  **`REWARD_VALID_MOVE_BASE` (Current: `0.1`)**:
+    *   **Purpose:** Reward for each correct move.
+    *   **Dynamic Scaling:** The actual reward is calculated as: `base * (1 + empty_cells / grid_size)`.
+    *   **Why this logic?** Due to the scaling, the agent receives a higher reward for moves on an empty board (where there are many possibilities) than for moves on an almost full board. This motivates the agent to make "difficult" decisions correctly at an early stage. The base value of `0.1` is small enough to allow "reward shaping" without overshadowing the ultimate goal.
 
-3.  **`REWARD_INVALID_MOVE` (Aktuell: `-0.5`)**:
-    *   **Zweck:** Bestrafung für illegale Züge (obwohl diese durch Action Masking weitgehend verhindert werden).
-    *   **Warum dieser Wert?** Die Strafe ist moderat negativ gewählt. Da der Agent `MaskablePPO` nutzt, trifft er selten auf ungültige Züge im Action Space, aber die Strafe dient als zusätzliche Absicherung für die Lernstabilität der Policy.
+3.  **`REWARD_INVALID_MOVE` (Current: `-0.5`)**:
+    *   **Purpose:** Punishment for illegal moves (although these are largely prevented by action masking).
+    *   **Why this value?** The penalty is chosen to be moderately negative. Since the agent uses `MaskablePPO`, it rarely encounters invalid moves in the action space, but the penalty serves as additional security for the learning stability of the policy.
 
 ---
 
-## 🖼️ Visualisierung (Training)
+## 🖼️ Visualization (Training)
 
-Während des Trainings kann der Fortschritt auf zwei Arten visualisiert werden:
+Progress during training can be visualized in two ways:
 
-*   **Live-GUI:** Wenn `config.RENDER_GUI = True` gesetzt ist, wird der Spielzustand der Agenten live in einem Fenster (`visualizer.py`) angezeigt.
-*   **TensorBoard:** Detaillierte Metriken (Reward, Erfolgsquote, Training-Loss) werden geloggt.
+*   **Live-GUI:** If `config.RENDER_GUI = True` is set, the game state of the agents is displayed live in a window (`visualizer.py`).
+*   **TensorBoard:** Detailed metrics (reward, success rate, training loss) are logged.
 
 ---
 
 ## 🛠 Setup & Installation
 
-### Voraussetzungen:
+### Prerequisites:
 *   Python 3.8+
-*   Anaconda oder venv (empfohlen)
-*   CUDA-fähige GPU (für Training empfohlen, z.B. CUDA 11.8)
+*   Anaconda or venv (recommended)
+*   CUDA-capable GPU (recommended for training, e.g., CUDA 11.8)
 
-### Installation der Abhängigkeiten:
+### Installing Dependencies:
 
-1.  **PyTorch mit CUDA-Support (Beispiel für CUDA 11.8):**
+1.  **PyTorch with CUDA support (example for CUDA 11.8):**
     ```bash
     pip install torch==2.3.1+cu118 torchvision==0.18.1+cu118 torchaudio==2.3.1+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
     ```
 
-2.  **Restliche Anforderungen:**
+2.  **Remaining Requirements:**
     ```bash
     pip install -r requirements.txt
     ```
 
 ---
 
-## 🏋️ Training starten
+## 🏋️ Starting Training
 
-Um den Agenten zu trainieren, führe einfach die `train.py` aus. Die Konfiguration kann in der `config.py` angepasst werden (z.B. `NUM_AGENTS` für Parallelisierung).
+To train the agent, simply run `train.py`. The configuration can be adjusted in `config.py` (e.g., `NUM_AGENTS` for parallelization).
 
 ```bash
 python train.py | Tee-Object -FilePath output/SUDOKU/training.log
 ```
 
-### Monitoring mit TensorBoard:
-Während das Training läuft, kannst du den Fortschritt (Erfolgsquote, Reward) live verfolgen. Der Pfad ist in `config.TENSORBOARD_TRAIN_LOG` definiert:
+### Monitoring with TensorBoard:
+While training is running, you can follow the progress (success rate, reward) live. The path is defined in `config.TENSORBOARD_TRAIN_LOG`:
 ```bash
-# Beispiel (standardmäßig):
+# Example (default):
 tensorboard --logdir output/SUDOKU/logs/train --port 6006
 ```
-Öffne dann `http://localhost:6006` in deinem Browser.
+Then open `http://localhost:6006` in your browser.
 
 ---
 
-## 🎮 Spielen & Den Agenten beobachten
+## 🎮 Playing & Watching the Agent
 
-Es stehen zwei Oberflächen zur Verfügung, um das Spiel selbst zu spielen oder die KI beim Lösen zu beobachten.
+Two interfaces are available to play the game yourself or watch the AI solving it.
 
-### 🌐 Web-Applikation (Streamlit) - Empfohlen
-Eine moderne, interaktive Weboberfläche, die im Browser läuft.
+### 🌐 Web Application (Streamlit) - Recommended
+A modern, interactive web interface that runs in the browser.
 ```bash
 streamlit run streamlit_app.py
 ```
 
-### 🖥️ Desktop-Anwendung (Tkinter)
-Die klassische Version mit Drag & Drop Funktionalität.
+### 🖥️ Desktop Application (Tkinter)
+The classic version with drag & drop functionality.
 ```bash
 python sudoku_game.py
 ```
 
-### Anleitung:
-1.  Stelle sicher, dass ein trainiertes Modell im `output`-Ordner liegt (siehe `config.MODEL_PATH`).
-2.  Wähle den Schwierigkeitsgrad über den **"Level"-Slider** aus.
-3.  Klicke auf **"Neues Spiel"** (oder generiere ein neues Rätsel).
-4.  Klicke auf **"Lösen"**, um den Agenten beim Lösen zuzusehen, oder spiele selbst!
+### Instructions:
+1.  Make sure a trained model is in the `output` folder (see `config.MODEL_PATH`).
+2.  Select the difficulty level using the **"Level" slider**.
+3.  Click on **"New Game"** (or generate a new puzzle).
+4.  Click on **"Solve"** to watch the agent solve it, or play yourself!
 
 ---
 
-## 📊 Visualisierung des Trainings (Live)
-Wenn in der `config.py` der Parameter `RENDER_GUI = True` gesetzt ist, öffnet das Training für jeden Agenten ein eigenes Fenster (`visualizer.py`). So kannst du live beobachten, wie die KI verschiedene Strategien ausprobiert.
+## 📊 Training Visualization (Live)
+If the parameter `RENDER_GUI = True` is set in `config.py`, the training opens a separate window for each agent (`visualizer.py`). This allows you to watch live as the AI tries out different strategies.
 
 ---
 
-## 📄 Lizenz & Autor
+## 📄 License & Author
 
-*   **Autor:** Andreas Börzel
+*   **Author:** Andreas Börzel
 *   **GitHub:** [Figure-Sudoku](https://github.com/aboerzel/FigureSudoku)
-*   **Lizenz:** [MIT License](LICENSE) (oder siehe Dateikopf)
+*   **License:** [MIT License](LICENSE) (or see file header)
 
-*Entwickelt als Experimentierfeld für Reinforcement Learning in komplexen Constraint-Umgebungen.*
+*Developed as an experimental field for reinforcement learning in complex constraint environments.*
