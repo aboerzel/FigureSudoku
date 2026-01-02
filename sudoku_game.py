@@ -85,59 +85,20 @@ class GridCell:
             # Geometry only: display as a solid gray shape
             self.shape = self.get_shape(geometry, None)
         elif color != Color.EMPTY.value:
-            # Color only: display as a thick colored dashed frame/border inside the cell
-            # This indicates that the color is fixed but the shape is missing
-            padding = 10
+            # Color only: display as a dashed rectangle with cross-hatch
+            padding = 5
             x1 = self.x + padding
             y1 = self.y + padding
             x2 = self.x + self.width - padding
             y2 = self.y + self.height - padding
-            color_str = self.get_color(color)
-            
-            tag = f"shape_{self.row}_{self.col}"
-            
-            # The dashed rectangle
-            self.board.create_rectangle(
-                x1, y1, x2, y2, 
-                outline=color_str, width=3, dash=(4, 4), tags=tag
-            )
-            
-            # Hatching (Schraffur) - diagonal lines
-            spacing = 8
-            # We want lines from top-left to bottom-right: y = x + offset
-            # The range of offset:
-            # Min: y1 - x2
-            # Max: y2 - x1
-            for offset in range(int(y1 - x2), int(y2 - x1), spacing):
-                # Intersection with x=x1: y = x1 + offset
-                # Intersection with x=x2: y = x2 + offset
-                # Intersection with y=y1: x = y1 - offset
-                # Intersection with y=y2: x = y2 - offset
-                
-                lx1 = max(x1, y1 - offset)
-                ly1 = lx1 + offset
-                lx2 = min(x2, y2 - offset)
-                ly2 = lx2 + offset
-                
-                if lx1 < lx2:
-                    # Clip to bounds for safety
-                    clx1 = max(x1, min(x2, lx1))
-                    cly1 = max(y1, min(y2, ly1))
-                    clx2 = max(x1, min(x2, lx2))
-                    cly2 = max(y1, min(y2, ly2))
-                    
-                    if abs(clx1 - clx2) > 1 or abs(cly1 - cly2) > 1:
-                        self.board.create_line(clx1, cly1, clx2, cly2, fill=color_str, width=1, tags=tag)
-            
-            # Ensure lines are on top
-            self.board.tag_raise(tag)
-            
-            self.board.tag_bind(tag, "<Button-1>", self.clicked)
-            self.board.tag_bind(tag, "<ButtonRelease-1>", self.released)
-            self.board.tag_bind(tag, "<Button-3>", self.right_clicked)
-            self.board.tag_bind(tag, "<Enter>", self.enter)
-            self.board.tag_bind(tag, "<Leave>", self.leave)
-            self.shape = tag
+            self.shape = self.board.create_rectangle(x1, y1, x2, y2, outline=self.get_color(color), width=1, dash=(2, 2), stipple='gray25', fill=self.get_color(color))
+            self.board.tag_bind(self.shape, "<Button-1>", self.clicked)
+            self.board.tag_bind(self.shape, "<ButtonRelease-1>", self.released)
+            self.board.tag_bind(self.shape, "<Button-3>", self.right_clicked)
+            self.board.tag_bind(self.shape, "<Enter>", self.enter)
+            self.board.tag_bind(self.shape, "<Leave>", self.leave)
+        else:
+            self.shape = None
 
     def set_preview(self, geometry, color, valid=True):
         self.clear_preview()
@@ -157,8 +118,13 @@ class GridCell:
         elif geometry != Geometry.EMPTY.value:
             self.preview_shape = self.get_shape(geometry, None, dash=(4, 2))
         elif color != Color.EMPTY.value:
-            # For color preview, we use a dashed circle as placeholder if no geometry is there
-            self.preview_shape = self.create_circle(color=self.get_color(color), dash=(4, 2))
+            # Color only: display as a dashed rectangle with cross-hatch
+            padding = 5
+            x1 = self.x + padding
+            y1 = self.y + padding
+            x2 = self.x + self.width - padding
+            y2 = self.y + self.height - padding
+            self.preview_shape = self.board.create_rectangle(x1, y1, x2, y2, outline=self.get_color(color), width=1, dash=(2, 2), stipple='gray12', fill=self.get_color(color))
         
         # Add a thick border to indicate preview
         tag = f"preview_border_{self.row}_{self.col}"
@@ -183,10 +149,7 @@ class GridCell:
         self.board.itemconfig(self.rect, fill=bg_color)
         
         if self.preview_shape is not None:
-            if isinstance(self.preview_shape, str):
-                self.board.delete(self.preview_shape)
-            else:
-                self.board.delete(self.preview_shape)
+            self.board.delete(self.preview_shape)
             self.preview_shape = None
             
         if hasattr(self, 'preview_border') and self.preview_border:
@@ -298,6 +261,7 @@ class GridCell:
         self.board.tag_bind(shape, "<Enter>", self.enter)
         self.board.tag_bind(shape, "<Leave>", self.leave)
         return shape
+
 
     @staticmethod
     def get_random_shape():
@@ -698,10 +662,12 @@ class SudokuApp(tk.Tk):
             # Color indicator as a draggable source
             ps = Canvas(colors_frame, width=30, height=30, bg=self.bg_sidebar, highlightthickness=0)
             ps.pack(side=LEFT, padx=5)
-            # Use a generic circle for color dragging
+            # Use a circle for color dragging
             cell = GridCell(ps, 0, 0, width=30, height=30, app=self)
-            cell.set_shape(Geometry.CIRCLE.value, c.value)
+            cell.create_circle(color=GridCell.get_color(c.value))
             
+            # Die ID ist hier nicht so wichtig, da wir nur draggen
+            # aber wir müssen sicherstellen, dass die Events auf dem Canvas oder den Items liegen
             ps.bind("<Button-1>", lambda e, c=c: self.start_drag(e, 'color', c.value))
             ps.bind("<B1-Motion>", self.on_drag)
             ps.bind("<ButtonRelease-1>", self.stop_drag)
