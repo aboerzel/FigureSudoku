@@ -36,17 +36,30 @@ def st_drag_drop_grid(state, key=None):
         html_content = f.read()
     
     # Wir nutzen declare_component, da wir bi-direktionale Kommunikation brauchen.
-    _st_drag_drop_grid_component = components.declare_component("figure_sudoku_grid_v14", path=FRONTEND_DIR)
+    _st_drag_drop_grid_component = components.declare_component("figure_sudoku_grid_v15", path=FRONTEND_DIR)
     
     # Wir setzen eine feste Höhe (height), um das Kollabieren auf 0px zu verhindern
     return _st_drag_drop_grid_component(state=state, key=key, default=None, height=500)
 
 # Seiteneinstellungen
-st.set_page_config(page_title="Figure-Sudoku", page_icon="🧩", layout="wide")
+st.set_page_config(page_title="Figure-Sudoku", page_icon="🧩", layout="wide", initial_sidebar_state="expanded")
 
-# CSS für das Gitter und die Symbole
+# CSS für das Gitter und die Symbole (Version 1.1)
 st.markdown("""
 <style>
+    /* Cache-Buster: v1.1 */
+    /* Sidebar-Toggle-Button ausblenden */
+    [data-testid="collapsedControl"], 
+    button[kind="headerNoPadding"],
+    .stApp > header {
+        display: none !important;
+    }
+    
+    /* Sidebar Leerraum oben reduzieren */
+    [data-testid="stSidebarContent"] {
+        padding-top: 1rem !important;
+    }
+    
     .sudoku-grid {
         display: grid;
         grid-template-columns: repeat(4, 100px);
@@ -256,7 +269,7 @@ def handle_cell_click(r, c):
 
 # UI - Sidebar
 with st.sidebar:
-    st.title("Figure-Sudoku")
+    st.markdown("# **Figure-Sudoku**")
     
     # Buttons während des Lösens deaktivieren
     controls_disabled = st.session_state.is_solving
@@ -333,7 +346,7 @@ current_state_list = st.session_state.game_state.tolist()
 
 try:
     # Container für das Gitter
-    drag_result = st_drag_drop_grid(state=current_state_list, key="sudoku_drag_grid_v14")
+    drag_result = st_drag_drop_grid(state=current_state_list, key="sudoku_drag_grid_v15")
 except Exception as e:
     st.error(f"Fehler beim Laden der Komponente: {e}")
     drag_result = None
