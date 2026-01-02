@@ -1,4 +1,4 @@
-# 🧩 FigureSudoku RL-Agent
+# 🧩 Figure-Sudoku RL-Agent
 
 Dieses Projekt demonstriert den Einsatz von **Reinforcement Learning** (Bestärkendes Lernen), um eine komplexe Sudoku-Variante zu lösen. Anstelle von Zahlen verwendet dieses Sudoku geometrische **Formen** und **Farben**, was die logischen Anforderungen an den Agenten erhöht.
 
@@ -6,7 +6,7 @@ Dieses Projekt demonstriert den Einsatz von **Reinforcement Learning** (Bestärk
 
 ## 🎨 Das Spielkonzept
 
-Das **FigureSudoku** basiert auf einem 4x4-Gitter. Jedes Feld muss eine eindeutige Kombination aus einer Form und einer Farbe enthalten.
+Das **Figure-Sudoku** basiert auf einem 4x4-Gitter. Jedes Feld muss eine eindeutige Kombination aus einer Form und einer Farbe enthalten.
 
 ### Die Attribute:
 *   **Geometrien:** 🔵 Kreis, 🟥 Quadrat, ▲ Dreieck, ⬢ Hexagon
@@ -204,8 +204,8 @@ python sudoku_game.py
 ### Anleitung:
 1.  Stelle sicher, dass ein trainiertes Modell im `output`-Ordner liegt (siehe `config.MODEL_PATH`).
 2.  Wähle den Schwierigkeitsgrad über den **"Level"-Slider** aus.
-3.  Klicke auf **"New Game"** (oder generiere ein neues Rätsel).
-4.  Klicke auf **"Solve"**, um den Agenten beim Lösen zuzusehen, oder spiele selbst!
+3.  Klicke auf **"Neues Spiel"** (oder generiere ein neues Rätsel).
+4.  Klicke auf **"Lösen"**, um den Agenten beim Lösen zuzusehen, oder spiele selbst!
 
 ---
 
@@ -217,7 +217,7 @@ Wenn in der `config.py` der Parameter `RENDER_GUI = True` gesetzt ist, öffnet d
 ## 📄 Lizenz & Autor
 
 *   **Autor:** Andreas Börzel
-*   **GitHub:** [FigureSudoku](https://github.com/aboerzel/FigureSudoku)
+*   **GitHub:** [Figure-Sudoku](https://github.com/aboerzel/FigureSudoku)
 *   **Lizenz:** [MIT License](LICENSE) (oder siehe Dateikopf)
 
 *Entwickelt als Experimentierfeld für Reinforcement Learning in komplexen Constraint-Umgebungen.*

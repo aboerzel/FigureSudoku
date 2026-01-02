@@ -335,7 +335,7 @@ class SudokuApp(tk.Tk):
         self.last_hovered_cell = None # (row, col)
 
         self.geometry(f"{self.width}x{self.height}")
-        self.title('Figure Sudoku')
+        self.title('Figure-Sudoku')
         self.resizable(False, False)
 
         # Style colors
@@ -629,7 +629,7 @@ class SudokuApp(tk.Tk):
         github_frame = Frame(right_col, bg="#f0f0f0")
         github_frame.pack(anchor=W)
         Label(github_frame, text="GitHub: ", font=("Arial", 9), bg="#f0f0f0", fg="#555555").pack(side=LEFT)
-        link = Label(github_frame, text="FigureSudoku", font=("Arial", 9, "underline"), bg="#f0f0f0", fg="blue", cursor="hand2")
+        link = Label(github_frame, text="Figure-Sudoku", font=("Arial", 9, "underline"), bg="#f0f0f0", fg="blue", cursor="hand2")
         link.pack(side=LEFT)
         link.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/aboerzel/FigureSudoku"))
         

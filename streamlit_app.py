@@ -9,15 +9,15 @@ from figure_sudoku_env import FigureSudokuEnv
 from shapes import Geometry, Color
 
 # Seiteneinstellungen
-st.set_page_config(page_title="FigureSudoku", page_icon="🧩", layout="wide")
+st.set_page_config(page_title="Figure-Sudoku", page_icon="🧩", layout="wide")
 
 # CSS für das Gitter und die Symbole
 st.markdown("""
 <style>
     .sudoku-grid {
         display: grid;
-        grid-template-columns: repeat(4, 80px);
-        grid-template-rows: repeat(4, 80px);
+        grid-template-columns: repeat(4, 100px);
+        grid-template-rows: repeat(4, 100px);
         gap: 2px;
         background-color: #333;
         border: 2px solid #333;
@@ -25,8 +25,8 @@ st.markdown("""
         margin: auto;
     }
     .sudoku-cell {
-        width: 80px;
-        height: 80px;
+        width: 100px;
+        height: 100px;
         background-color: white;
         display: flex;
         justify-content: center;
@@ -42,8 +42,8 @@ st.markdown("""
     .cell-odd { background-color: #ffffff; }
     
     .shape-container {
-        width: 60px;
-        height: 60px;
+        width: 80px;
+        height: 80px;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -57,10 +57,11 @@ st.markdown("""
     
     /* Partial color style */
     .partial-color {
-        width: 50px;
-        height: 50px;
-        border: 2px dashed;
-        background-color: rgba(0,0,0,0.1);
+        width: 70px;
+        height: 70px;
+        border: 4px dashed;
+        border-radius: 5px;
+        background-color: rgba(0,0,0,0.05);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -111,7 +112,7 @@ def render_cell_content(geometry, color_val):
     if geometry == Geometry.EMPTY.value and color_val == Color.EMPTY.value:
         return ""
     
-    size = 60
+    size = 80
     if geometry != Geometry.EMPTY.value and color_val != Color.EMPTY.value:
         svg_content = get_shape_svg(geometry, color_val, size)
     elif geometry != Geometry.EMPTY.value:
@@ -139,34 +140,51 @@ if 'env' not in st.session_state:
     st.session_state.level = 10
     st.session_state.selected_tool = None # ('geometry', val) oder ('color', val)
     st.session_state.status = "Bereit"
+    st.session_state.is_solving = False
+    st.session_state.solve_move_count = 0
 
 def start_new_game():
     obs, _ = st.session_state.env.reset_with_level(level=st.session_state.level)
     st.session_state.game_state = st.session_state.env.state.copy()
     st.session_state.status = "Neues Spiel gestartet"
+    st.session_state.is_solving = False
+    st.session_state.solve_move_count = 0
+
+def solve_step():
+    if not st.session_state.is_solving or st.session_state.model is None:
+        return
+    
+    st.session_state.solve_move_count += 1
+    env = st.session_state.env
+    env.state = st.session_state.game_state.copy()
+    obs = env._get_obs()
+    
+    action_masks = env.action_masks()
+    action, _ = st.session_state.model.predict(obs, action_masks=action_masks, deterministic=True)
+    
+    obs, reward, terminated, truncated, _ = env.step(action)
+    st.session_state.game_state = env.state.copy()
+    
+    st.session_state.status = f"KI löst... (Zug {st.session_state.solve_move_count})"
+    
+    if FigureSudokuEnv.is_done(env.state):
+        st.session_state.status = f"Gelöst in {st.session_state.solve_move_count} Zügen!"
+        st.session_state.is_solving = False
+        st.balloons()
+    elif terminated or truncated or st.session_state.solve_move_count >= config.MAX_TIMESTEPS:
+        st.session_state.status = "Lösen fehlgeschlagen"
+        st.session_state.is_solving = False
+    
+    time.sleep(0.2)
+    st.rerun()
 
 def solve_game():
     if st.session_state.model is None:
         st.error("Modell nicht geladen!")
         return
-    
-    st.session_state.status = "KI löst..."
-    # Wir machen es hier synchron für Streamlit
-    state = st.session_state.game_state.copy()
-    env = st.session_state.env
-    env.state = state.copy()
-    
-    obs = env._get_obs()
-    done = False
-    
-    while not done:
-        action_masks = env.action_masks()
-        action, _states = st.session_state.model.predict(obs, action_masks=action_masks, deterministic=True)
-        obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        st.session_state.game_state = env.state.copy()
-    
-    st.session_state.status = "Gelöst!"
+    st.session_state.is_solving = True
+    st.session_state.solve_move_count = 0
+    st.rerun()
 
 def handle_cell_click(r, c):
     if st.session_state.selected_tool:
@@ -181,70 +199,88 @@ def handle_cell_click(r, c):
             
         # Validierung
         if st.session_state.env.can_move(st.session_state.game_state, r, c, new_g, new_c):
-            st.session_state.game_state[r, c] = [new_g, new_c]
-            st.session_state.env.state = st.session_state.game_state.copy()
-            if FigureSudokuEnv.is_done(st.session_state.game_state):
-                st.session_state.status = "Gelöst! Glückwunsch!"
-                st.balloons()
+            # Check if something actually changed
+            if new_g != curr_g or new_c != curr_c:
+                st.session_state.game_state[r, c] = [new_g, new_c]
+                st.session_state.env.state = st.session_state.game_state.copy()
+                st.session_state.env.invalidate_action_mask()
+                
+                if FigureSudokuEnv.is_done(st.session_state.game_state):
+                    st.session_state.status = "Gelöst! Glückwunsch!"
+                    st.balloons()
+                else:
+                    st.session_state.status = "Bereit"
             else:
                 st.session_state.status = "Bereit"
         else:
             st.session_state.status = "Ungültiger Zug!"
+            st.toast("Dieser Zug verstößt gegen die Regeln!", icon="⚠️")
     else:
-        pass
+        st.session_state.status = "Wähle zuerst eine Form oder Farbe aus!"
 
 # UI - Sidebar
 with st.sidebar:
-    st.title("FigureSudoku")
+    st.title("Figure-Sudoku")
     
-    st.session_state.level = st.slider("Level", 1, 12, st.session_state.level)
+    # Buttons während des Lösens deaktivieren
+    controls_disabled = st.session_state.is_solving
     
-    if st.button("Neues Spiel", use_container_width=True):
+    st.session_state.level = st.slider("Level", 1, 12, st.session_state.level, disabled=controls_disabled)
+    
+    if st.button("Neues Spiel", use_container_width=True, key="new_game_btn", disabled=controls_disabled):
         start_new_game()
+        st.rerun()
         
-    if st.button("Lösen", use_container_width=True, disabled=st.session_state.model is None):
+    if st.button("Lösen", use_container_width=True, disabled=st.session_state.model is None or controls_disabled, key="solve_btn"):
         solve_game()
+        st.rerun()
         
     st.divider()
     st.subheader("Manuelles Setzen")
     st.caption("Wähle ein Symbol/Farbe und klicke auf das Gitter")
     
     # Formen Auswahl
+    st.write("**Formen**")
     cols = st.columns(4)
     geometries = [Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON]
     for i, g in enumerate(geometries):
         with cols[i]:
             svg = render_cell_content(g.value, Color.EMPTY.value)
             is_selected = st.session_state.selected_tool == ('geometry', g.value)
-            border = "2px solid red" if is_selected else "1px solid gray"
-            if st.button(f"G{i}", key=f"geom_{g.value}", help=g.name):
+            bg_color = "#ffe6e6" if is_selected else "transparent"
+            border = "2px solid red" if is_selected else "1px solid #ddd"
+            
+            st.markdown(f'<div style="border: {border}; background-color: {bg_color}; padding: 5px; border-radius: 5px; display: flex; justify-content: center;">{svg}</div>', unsafe_allow_html=True)
+            if st.button("Wählen", key=f"geom_{g.value}", use_container_width=True, disabled=controls_disabled):
                 st.session_state.selected_tool = ('geometry', g.value)
                 st.rerun()
-            st.markdown(f'<div style="border: {border}; padding: 2px;">{svg}</div>', unsafe_allow_html=True)
 
     # Farben Auswahl
+    st.write("**Farben**")
     cols = st.columns(4)
     colors = [Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW]
     for i, c in enumerate(colors):
         with cols[i]:
             svg = render_cell_content(Geometry.CIRCLE.value, c.value)
             is_selected = st.session_state.selected_tool == ('color', c.value)
-            border = "2px solid red" if is_selected else "1px solid gray"
-            if st.button(f"C{i}", key=f"color_{c.value}", help=c.name):
+            bg_color = "#ffe6e6" if is_selected else "transparent"
+            border = "2px solid red" if is_selected else "1px solid #ddd"
+            
+            st.markdown(f'<div style="border: {border}; background-color: {bg_color}; padding: 5px; border-radius: 5px; display: flex; justify-content: center;">{svg}</div>', unsafe_allow_html=True)
+            if st.button("Wählen", key=f"color_{c.value}", use_container_width=True, disabled=controls_disabled):
                 st.session_state.selected_tool = ('color', c.value)
                 st.rerun()
-            st.markdown(f'<div style="border: {border}; padding: 2px;">{svg}</div>', unsafe_allow_html=True)
             
-    if st.button("Auswahl aufheben"):
+    if st.button("Auswahl aufheben", use_container_width=True, key="clear_selection", disabled=controls_disabled):
         st.session_state.selected_tool = None
         st.rerun()
         
-    if st.button("Feld löschen (Radiergummi)"):
+    if st.button("Feld löschen (Radiergummi)", use_container_width=True, key="eraser_tool", disabled=controls_disabled):
         st.session_state.selected_tool = ('delete', 0)
         st.rerun()
 
     st.divider()
-    if st.button("Hilfe anzeigen / ausblenden"):
+    if st.button("Hilfe anzeigen / ausblenden", use_container_width=True, key="help_toggle"):
         if 'show_help' not in st.session_state: st.session_state.show_help = False
         st.session_state.show_help = not st.session_state.show_help
         st.rerun()
@@ -253,14 +289,26 @@ with st.sidebar:
 st.subheader(f"Status: {st.session_state.status}")
 
 # Gitter-Darstellung
-grid_cols = st.columns([1, 1, 1, 1, 6])
+# Wir nutzen ein CSS Grid direkt für eine stabilere Darstellung
+grid_html = '<div class="sudoku-grid">'
 for r in range(4):
     for c in range(4):
-        with grid_cols[c]:
-            cell_data = st.session_state.game_state[r, c]
-            content = render_cell_content(cell_data[0], cell_data[1])
-            
-            if st.button("", key=f"cell_{r}_{c}", use_container_width=True):
+        cell_data = st.session_state.game_state[r, c]
+        content = render_cell_content(cell_data[0], cell_data[1])
+        bg_color = "#f9f9f9" if (r+c)%2==0 else "white"
+        # Klick nur erlauben, wenn nicht gelöst wird
+        click_action = f"document.getElementById('cell_btn_{r}_{c}').click();" if not controls_disabled else ""
+        grid_html += f'<div class="sudoku-cell" style="background-color: {bg_color};" onclick="{click_action}">{content}</div>'
+grid_html += '</div>'
+
+st.markdown(grid_html, unsafe_allow_html=True)
+
+# Unsichtbare Buttons für die Interaktion
+for r in range(4):
+    cols = st.columns(4) # Wir platzieren sie in Spalten, damit sie nicht zu viel Platz wegnehmen
+    for c in range(4):
+        with cols[c]:
+            if st.button(f"Feld {r+1},{c+1}", key=f"cell_btn_{r}_{c}", help=f"Klicke auf das Gitter oben", disabled=controls_disabled):
                 if st.session_state.selected_tool == ('delete', 0):
                     st.session_state.game_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
                     st.session_state.env.state = st.session_state.game_state.copy()
@@ -268,8 +316,10 @@ for r in range(4):
                 else:
                     handle_cell_click(r, c)
                     st.rerun()
-            
-            st.markdown(f'<div style="height: 60px; display: flex; justify-content: center; align-items: center; background-color: {"#f9f9f9" if (r+c)%2==0 else "white"}; border: 1px solid #ddd; margin-top: -45px; pointer-events: none;">{content}</div>', unsafe_allow_html=True)
+
+# Wenn KI am Lösen ist, nächsten Schritt ausführen
+if st.session_state.is_solving:
+    solve_step()
 
 # Hilfe Sektion
 if st.session_state.get('show_help', False):
@@ -332,5 +382,5 @@ if st.session_state.get('show_help', False):
         st.write("- **Radiergummi**: Klicke auf ein Feld zum Löschen.")
         
         st.markdown("Autor: Andreas Börzel")
-        st.markdown("[GitHub: FigureSudoku](https://github.com/aboerzel/FigureSudoku)")
+        st.markdown("[GitHub: Figure-Sudoku](https://github.com/aboerzel/FigureSudoku)")
         st.markdown("Lizenz: MIT License")
