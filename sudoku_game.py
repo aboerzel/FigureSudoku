@@ -300,7 +300,7 @@ class GridCell:
             Geometry.HEXAGON.value: self.create_hexagon
         }.get(shape)
         if func:
-            color_str = 'lightgray' if color is None else self.get_color(color)
+            color_str = 'gray' if color is None else self.get_color(color)
             return func(color=color_str, dash=dash)
         return None
 
@@ -599,10 +599,10 @@ class SudokuApp(tk.Tk):
 
         # Mittlere Spalte (2)
         add_help_section(mid_col, "FORMEN")
-        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.RED.value, "Kreis")
-        add_visual_example(mid_col, Geometry.QUADRAT.value, Color.RED.value, "Quadrat")
-        add_visual_example(mid_col, Geometry.TRIANGLE.value, Color.RED.value, "Dreieck")
-        add_visual_example(mid_col, Geometry.HEXAGON.value, Color.RED.value, "Hexagon")
+        add_visual_example(mid_col, Geometry.CIRCLE.value, Color.EMPTY.value, "Kreis")
+        add_visual_example(mid_col, Geometry.QUADRAT.value, Color.EMPTY.value, "Quadrat")
+        add_visual_example(mid_col, Geometry.TRIANGLE.value, Color.EMPTY.value, "Dreieck")
+        add_visual_example(mid_col, Geometry.HEXAGON.value, Color.EMPTY.value, "Hexagon")
 
         add_help_section(mid_col, "FARBEN")
         add_visual_example(mid_col, Geometry.CIRCLE.value, Color.RED.value, "Rot")
@@ -621,7 +621,8 @@ class SudokuApp(tk.Tk):
             "• Lösen: Lässt die KI das Rätsel lösen.\n"
             "• Level-Slider: Stellt die Schwierigkeit (1-12) ein.\n"
             "• Ziehen von Formen/Farben: Platziert diese auf dem Feld.\n"
-            "• Rechtsklick auf Feld: Öffnet Menü zum Löschen von Zügen.")
+            "• Rechtsklick auf Feld: Öffnet Menü zum Löschen von Zügen.\n\n"
+            "Autor: Andreas Börzel")
 
         # Buttons with style
         button_style = {"width": 18, "pady": 5, "bg": self.accent_color, "fg": "white", "font": ("Arial", 9, "bold"), "relief": "flat"}
@@ -681,7 +682,7 @@ class SudokuApp(tk.Tk):
         self.level_slider.set(self.level)
         self.level_slider.pack(padx=10, pady=(0, 5))
 
-        # Hilfe-Button unten in der Sidebar
+
         self.help_button = Button(sidebar, text="?", command=self.toggle_help, 
                                  bg=self.bg_sidebar, fg="#aaaaaa", font=("Arial", 12, "bold"), 
                                  relief="flat", bd=0, activebackground="#444444", activeforeground="#ffffff")
