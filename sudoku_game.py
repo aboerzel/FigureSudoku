@@ -621,7 +621,7 @@ class SudokuApp(tk.Tk):
             "• Lösen: Lässt die KI das Rätsel lösen.\n"
             "• Level-Slider: Stellt die Schwierigkeit (1-12) ein.\n"
             "• Ziehen von Formen/Farben: Platziert diese auf dem Feld.\n"
-            "• Rechtsklick auf Feld: Löscht einen eigenen Zug.")
+            "• Rechtsklick auf Feld: Öffnet Menü zum Löschen von Zügen.")
 
         # Buttons with style
         button_style = {"width": 18, "pady": 5, "bg": self.accent_color, "fg": "white", "font": ("Arial", 9, "bold"), "relief": "flat"}
