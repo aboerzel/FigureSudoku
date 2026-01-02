@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import numpy as np
 import math
 import time
@@ -7,6 +8,38 @@ from sb3_contrib import MaskablePPO
 import config
 from figure_sudoku_env import FigureSudokuEnv
 from shapes import Geometry, Color
+
+import os
+
+# Deklaration der Custom Component
+# Wir nutzen den Pfad zum 'frontend' Verzeichnis, wo index.html liegt
+PARENT_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(PARENT_DIR, "frontend")
+INDEX_PATH = os.path.join(FRONTEND_DIR, "index.html")
+
+# Prüfen ob Verzeichnis existiert
+if not os.path.exists(FRONTEND_DIR):
+    st.error(f"Frontend-Verzeichnis nicht gefunden: {FRONTEND_DIR}")
+if not os.path.exists(INDEX_PATH):
+    st.error(f"index.html im Frontend-Verzeichnis nicht gefunden!")
+
+def st_drag_drop_grid(state, key=None):
+    """
+    Alternative Implementierung: Wir laden die HTML-Datei direkt und betten sie ein.
+    Dies umgeht Probleme mit declare_component in manchen Umgebungen.
+    """
+    if not os.path.exists(INDEX_PATH):
+        st.error(f"Frontend-Dateien fehlen unter {FRONTEND_DIR}!")
+        return None
+    
+    with open(INDEX_PATH, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    
+    # Wir nutzen declare_component, da wir bi-direktionale Kommunikation brauchen.
+    _st_drag_drop_grid_component = components.declare_component("figure_sudoku_grid_v8", path=FRONTEND_DIR)
+    
+    # Wir setzen eine feste Höhe (height), um das Kollabieren auf 0px zu verhindern
+    return _st_drag_drop_grid_component(state=state, key=key, default=None, height=500)
 
 # Seiteneinstellungen
 st.set_page_config(page_title="Figure-Sudoku", page_icon="🧩", layout="wide")
@@ -142,6 +175,7 @@ if 'env' not in st.session_state:
     st.session_state.status = "Bereit"
     st.session_state.is_solving = False
     st.session_state.solve_move_count = 0
+    st.session_state.last_move_id = None
 
 def start_new_game():
     obs, _ = st.session_state.env.reset_with_level(level=st.session_state.level)
@@ -236,86 +270,65 @@ with st.sidebar:
         st.rerun()
         
     st.divider()
-    st.subheader("Manuelles Setzen")
-    st.caption("Wähle ein Symbol/Farbe und klicke auf das Gitter")
+    st.subheader("Bedienung")
+    st.info("Ziehe eine Form oder Farbe aus der Werkzeugleiste (links vom Gitter) auf ein Feld.")
     
-    # Formen Auswahl
-    st.write("**Formen**")
-    cols = st.columns(4)
-    geometries = [Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON]
-    for i, g in enumerate(geometries):
-        with cols[i]:
-            svg = render_cell_content(g.value, Color.EMPTY.value)
-            is_selected = st.session_state.selected_tool == ('geometry', g.value)
-            bg_color = "#ffe6e6" if is_selected else "transparent"
-            border = "2px solid red" if is_selected else "1px solid #ddd"
-            
-            st.markdown(f'<div style="border: {border}; background-color: {bg_color}; padding: 5px; border-radius: 5px; display: flex; justify-content: center;">{svg}</div>', unsafe_allow_html=True)
-            if st.button("Wählen", key=f"geom_{g.value}", use_container_width=True, disabled=controls_disabled):
-                st.session_state.selected_tool = ('geometry', g.value)
-                st.rerun()
-
-    # Farben Auswahl
-    st.write("**Farben**")
-    cols = st.columns(4)
-    colors = [Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW]
-    for i, c in enumerate(colors):
-        with cols[i]:
-            svg = render_cell_content(Geometry.CIRCLE.value, c.value)
-            is_selected = st.session_state.selected_tool == ('color', c.value)
-            bg_color = "#ffe6e6" if is_selected else "transparent"
-            border = "2px solid red" if is_selected else "1px solid #ddd"
-            
-            st.markdown(f'<div style="border: {border}; background-color: {bg_color}; padding: 5px; border-radius: 5px; display: flex; justify-content: center;">{svg}</div>', unsafe_allow_html=True)
-            if st.button("Wählen", key=f"color_{c.value}", use_container_width=True, disabled=controls_disabled):
-                st.session_state.selected_tool = ('color', c.value)
-                st.rerun()
-            
-    if st.button("Auswahl aufheben", use_container_width=True, key="clear_selection", disabled=controls_disabled):
-        st.session_state.selected_tool = None
-        st.rerun()
-        
-    if st.button("Feld löschen (Radiergummi)", use_container_width=True, key="eraser_tool", disabled=controls_disabled):
-        st.session_state.selected_tool = ('delete', 0)
-        st.rerun()
-
-    st.divider()
     if st.button("Hilfe anzeigen / ausblenden", use_container_width=True, key="help_toggle"):
         if 'show_help' not in st.session_state: st.session_state.show_help = False
         st.session_state.show_help = not st.session_state.show_help
         st.rerun()
 
-# Hauptbereich
-st.subheader(f"Status: {st.session_state.status}")
+# Gitter-Darstellung via Custom Component
+# Wir konvertieren den game_state in eine Liste, damit er JSON-serialisierbar ist
+current_state_list = st.session_state.game_state.tolist()
+try:
+    # Container für das Gitter
+    drag_result = st_drag_drop_grid(state=current_state_list, key="sudoku_drag_grid_v8")
+except Exception as e:
+    st.error(f"Fehler beim Laden der Komponente: {e}")
+    drag_result = None
 
-# Gitter-Darstellung
-# Wir nutzen ein CSS Grid direkt für eine stabilere Darstellung
-grid_html = '<div class="sudoku-grid">'
-for r in range(4):
-    for c in range(4):
-        cell_data = st.session_state.game_state[r, c]
-        content = render_cell_content(cell_data[0], cell_data[1])
-        bg_color = "#f9f9f9" if (r+c)%2==0 else "white"
-        # Klick nur erlauben, wenn nicht gelöst wird
-        click_action = f"document.getElementById('cell_btn_{r}_{c}').click();" if not controls_disabled else ""
-        grid_html += f'<div class="sudoku-cell" style="background-color: {bg_color};" onclick="{click_action}">{content}</div>'
-grid_html += '</div>'
+# Status-Zeile unter dem Gitter anzeigen
+st.write(f"**Aktueller Status:** {st.session_state.status}")
 
-st.markdown(grid_html, unsafe_allow_html=True)
-
-# Unsichtbare Buttons für die Interaktion
-for r in range(4):
-    cols = st.columns(4) # Wir platzieren sie in Spalten, damit sie nicht zu viel Platz wegnehmen
-    for c in range(4):
-        with cols[c]:
-            if st.button(f"Feld {r+1},{c+1}", key=f"cell_btn_{r}_{c}", help=f"Klicke auf das Gitter oben", disabled=controls_disabled):
-                if st.session_state.selected_tool == ('delete', 0):
-                    st.session_state.game_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
-                    st.session_state.env.state = st.session_state.game_state.copy()
-                    st.rerun()
+# Verarbeitung des Drags
+if drag_result and drag_result.get('timestamp') != st.session_state.get('last_move_id'):
+    r, c = drag_result['row'], drag_result['col']
+    tool_type = drag_result['type']
+    value = drag_result['value']
+    
+    st.session_state.last_move_id = drag_result['timestamp']
+    
+    if tool_type == 'delete':
+        st.session_state.game_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
+        st.session_state.env.state = st.session_state.game_state.copy()
+        st.session_state.env.invalidate_action_mask()
+        st.rerun()
+    else:
+        curr_g, curr_c = st.session_state.game_state[r, c]
+        new_g, new_c = curr_g, curr_c
+        if tool_type == 'geometry':
+            new_g = value
+        else:
+            new_c = value
+            
+        # Validierung
+        if st.session_state.env.can_move(st.session_state.game_state, r, c, new_g, new_c):
+            if new_g != curr_g or new_c != curr_c:
+                st.session_state.game_state[r, c] = [new_g, new_c]
+                st.session_state.env.state = st.session_state.game_state.copy()
+                st.session_state.env.invalidate_action_mask()
+                
+                if FigureSudokuEnv.is_done(st.session_state.game_state):
+                    st.session_state.status = "Gelöst! Glückwunsch!"
+                    st.balloons()
                 else:
-                    handle_cell_click(r, c)
-                    st.rerun()
+                    st.session_state.status = "Bereit"
+                st.rerun()
+        else:
+            st.session_state.status = "Ungültiger Zug!"
+            st.toast("Dieser Zug verstößt gegen die Regeln!", icon="⚠️")
+            st.rerun()
 
 # Wenn KI am Lösen ist, nächsten Schritt ausführen
 if st.session_state.is_solving:
@@ -378,8 +391,8 @@ if st.session_state.get('show_help', False):
         st.markdown("### STEUERUNG")
         st.write("- **Neues Spiel**: Startet eine neue Runde.")
         st.write("- **Lösen**: Lässt die KI das Rätsel lösen.")
-        st.write("- **Wähle Form/Farbe**: Dann klicke auf das Gitter.")
-        st.write("- **Radiergummi**: Klicke auf ein Feld zum Löschen.")
+        st.write("- **Werkzeugleiste**: Ziehe eine Form oder Farbe auf das Gitter.")
+        st.write("- **Radiergummi**: Ziehe ihn auf ein Feld zum Löschen.")
         
         st.markdown("Autor: Andreas Börzel")
         st.markdown("[GitHub: Figure-Sudoku](https://github.com/aboerzel/FigureSudoku)")

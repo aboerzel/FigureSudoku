@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; font-family: sans-serif; overflow: hidden; background-color: transparent; }
+        .container { 
+            display: flex !important; 
+            gap: 20px; 
+            align-items: start; 
+            padding: 10px; 
+            background-color: transparent !important; 
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        .toolbar { display: flex; flex-direction: column; gap: 10px; background: #333; padding: 15px; border-radius: 8px; border: 1px solid #444; color: white; }
+        .tool-group { display: flex; flex-direction: column; gap: 5px; }
+        .tool-title { font-size: 11px; font-weight: bold; color: #aaa; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        .shapes-row, .colors-row { display: grid; grid-template-columns: repeat(2, 45px); gap: 8px; }
+        
+        .draggable {
+            width: 45px;
+            height: 45px;
+            background: #444;
+            border: 1px solid #555;
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+            user-select: none;
+            transition: transform 0.1s, background 0.1s;
+        }
+        .draggable:hover { background: #555; transform: scale(1.05); }
+        .draggable:active { cursor: grabbing; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 100px);
+            grid-template-rows: repeat(4, 100px);
+            gap: 4px;
+            background-color: #222;
+            border: 8px solid #222;
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        .cell.drag-over { background-color: #e0f0ff !important; border: 2px dashed #4a90e2; box-sizing: border-box; }
+        
+        .svg-icon { width: 80%; height: 80%; }
+        .toolbar-icon { width: 30px; height: 30px; }
+        
+        .eraser {
+            grid-column: span 2;
+            background: #554444;
+            border-color: #665555;
+            font-size: 20px;
+        }
+        .eraser:hover { background: #665555; }
+        
+        .partial-color {
+            width: 70px;
+            height: 70px;
+            border: 4px dashed;
+            border-radius: 5px;
+            background-color: rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="main-container">
+        <div class="toolbar" id="toolbar">
+            <div class="tool-group">
+                <div class="tool-title">FORMEN</div>
+                <div class="shapes-row">
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'geometry', 1)" id="geom-1"></div>
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'geometry', 2)" id="geom-2"></div>
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'geometry', 3)" id="geom-3"></div>
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'geometry', 4)" id="geom-4"></div>
+                </div>
+            </div>
+            <div class="tool-group">
+                <div class="tool-title">FARBEN</div>
+                <div class="colors-row">
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'color', 1)" id="color-1"></div>
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'color', 2)" id="color-2"></div>
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'color', 3)" id="color-3"></div>
+                    <div class="draggable" draggable="true" ondragstart="drag(event, 'color', 4)" id="color-4"></div>
+                </div>
+            </div>
+            <div class="tool-group">
+                <div class="tool-title">AKTIONEN</div>
+                <div class="draggable eraser" draggable="true" ondragstart="drag(event, 'delete', 0)" id="eraser">🗑️</div>
+            </div>
+        </div>
+        
+        <div class="grid" id="grid">
+            <!-- Cells will be generated here -->
+        </div>
+    </div>
+
+    <script>
+        // Globaler Fehler-Handler
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            debug("JS-ERROR: " + msg + " (Line: " + lineNo + ")");
+            return false;
+        };
+
+        const Geometry = { EMPTY: 0, CIRCLE: 1, QUADRAT: 2, TRIANGLE: 3, HEXAGON: 4 };
+        const Color = { EMPTY: 0, RED: 1, GREEN: 2, BLUE: 3, YELLOW: 4 };
+
+        // Debug-Overlay für sichtbare Fehlermeldungen direkt in der Komponente
+        function debug(msg) {
+            // console.log(msg);
+        }
+
+        function sendMessage(data) {
+            debug("Sending message to Streamlit: " + JSON.stringify(data));
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: "streamlit:setComponentValue",
+                value: data
+            }, "*");
+        }
+
+        function getSVG(geometry, colorVal, size=80, opacity=1.0) {
+            const colors = ["gray", "red", "green", "blue", "yellow"];
+            const color = colors[colorVal] || "gray";
+            
+            if (geometry === Geometry.CIRCLE) {
+                return `<svg viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${size*0.4}" fill="${color}" fill-opacity="${opacity}" /></svg>`;
+            } else if (geometry === Geometry.QUADRAT) {
+                const p = size * 0.1; const s = size * 0.8;
+                return `<svg viewBox="0 0 ${size} ${size}"><rect x="${p}" y="${p}" width="${s}" height="${s}" fill="${color}" fill-opacity="${opacity}" /></svg>`;
+            } else if (geometry === Geometry.TRIANGLE) {
+                const p = size * 0.1; const h = size * 0.8; const w = 2 * h / Math.sqrt(3); const off_x = (size - w) / 2;
+                const points = `${size/2},${p} ${off_x+w},${p+h} ${off_x},${p+h}`;
+                return `<svg viewBox="0 0 ${size} ${size}"><polygon points="${points}" fill="${color}" fill-opacity="${opacity}" /></svg>`;
+            } else if (geometry === Geometry.HEXAGON) {
+                const p = size * 0.1; const a = (size - 2*p) / 2; const ri = Math.sqrt(3) * a / 2;
+                const mx = size/2; const my = size/2;
+                const pts = [ [mx - a, my], [mx - a/2, my + ri], [mx + a/2, my + ri], [mx + a, my], [mx + a/2, my - ri], [mx - a/2, my - ri] ];
+                const points_str = pts.map(p => p.join(',')).join(' ');
+                return `<svg viewBox="0 0 ${size} ${size}"><polygon points="${points_str}" fill="${color}" fill-opacity="${opacity}" /></svg>`;
+            }
+            return "";
+        }
+
+        function renderCellContent(geometry, colorVal) {
+            if (geometry === Geometry.EMPTY && colorVal === Color.EMPTY) return "";
+            if (geometry !== Geometry.EMPTY) {
+                return getSVG(geometry, colorVal, 80);
+            } else {
+                const colors = ["gray", "red", "green", "blue", "yellow"];
+                const c = colors[colorVal] || "gray";
+                return `<div class="partial-color" style="border-color: ${c};"></div>`;
+            }
+        }
+
+        function drag(ev, type, value) {
+            debug("Start drag: " + type + " = " + value);
+            ev.dataTransfer.setData("drag-type", type);
+            ev.dataTransfer.setData("drag-value", value);
+            ev.dataTransfer.effectAllowed = "move";
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = "move";
+        }
+
+        function handleDrop(ev, r, c) {
+            ev.preventDefault();
+            const type = ev.dataTransfer.getData("drag-type");
+            const valueStr = ev.dataTransfer.getData("drag-value");
+            
+            debug("Dropped: " + type + " (" + valueStr + ") on " + r + "," + c);
+            
+            if (!type) {
+                debug("Error: No drag-type found in dataTransfer");
+                return;
+            }
+
+            const value = parseInt(valueStr);
+            
+            sendMessage({
+                row: r,
+                col: c,
+                type: type,
+                value: value,
+                timestamp: Date.now()
+            });
+            
+            ev.currentTarget.classList.remove("drag-over");
+        }
+
+        function onDragEnter(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.add("drag-over");
+        }
+
+        function onDragLeave(ev) {
+            ev.currentTarget.classList.remove("drag-over");
+        }
+
+        function updateGrid(state) {
+            const gridDiv = document.getElementById('grid');
+            gridDiv.innerHTML = '';
+            
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 4; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if ((r + c) % 2 === 0) cell.style.backgroundColor = '#f9f9f9';
+                    
+                    cell.ondragover = allowDrop;
+                    cell.ondrop = (ev) => handleDrop(ev, r, c);
+                    cell.ondragenter = onDragEnter;
+                    cell.ondragleave = onDragLeave;
+                    
+                    if (state && state[r] && state[r][c]) {
+                        const content = renderCellContent(state[r][c][0], state[r][c][1]);
+                        cell.innerHTML = content;
+                    }
+                    gridDiv.appendChild(cell);
+                }
+            }
+            
+            sendHeight();
+        }
+
+        function sendHeight() {
+            const container = document.getElementById('main-container');
+            if (!container) return;
+            const height = Math.max(container.offsetHeight, 700);
+            debug("Setting frame height to: " + height);
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: "streamlit:setFrameHeight",
+                value: height
+            }, "*");
+        }
+
+        function onDataFromStreamlit(event) {
+            if (event.data.type !== "streamlit:render") return;
+            debug("Received render data (state present: " + (!!event.data.args.state) + ")");
+            const state = event.data.args.state;
+            try {
+                updateGrid(state);
+            } catch (e) {
+                debug("Render error: " + e.message);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            debug("DOM Content Loaded");
+            try {
+                const g1 = document.getElementById('geom-1');
+                if (g1) {
+                    g1.innerHTML = getSVG(Geometry.CIRCLE, 0, 30);
+                    document.getElementById('geom-2').innerHTML = getSVG(Geometry.QUADRAT, 0, 30);
+                    document.getElementById('geom-3').innerHTML = getSVG(Geometry.TRIANGLE, 0, 30);
+                    document.getElementById('geom-4').innerHTML = getSVG(Geometry.HEXAGON, 0, 30);
+                    
+                    document.getElementById('color-1').innerHTML = getSVG(Geometry.CIRCLE, Color.RED, 30);
+                    document.getElementById('color-2').innerHTML = getSVG(Geometry.CIRCLE, Color.GREEN, 30);
+                    document.getElementById('color-3').innerHTML = getSVG(Geometry.CIRCLE, Color.BLUE, 30);
+                    document.getElementById('color-4').innerHTML = getSVG(Geometry.CIRCLE, Color.YELLOW, 30);
+                }
+            } catch (e) { debug("Icon error: " + e); }
+
+            updateGrid(null);
+            window.addEventListener("message", onDataFromStreamlit);
+            
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: "streamlit:componentReady",
+                apiVersion: 1
+            }, "*");
+
+            setTimeout(sendHeight, 100);
+            setTimeout(sendHeight, 1000);
+        });
+    </script>
+</body>
+</html>
