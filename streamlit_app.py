@@ -3,7 +3,6 @@ import streamlit.components.v1 as components
 import numpy as np
 import math
 import time
-import webbrowser
 from sb3_contrib import MaskablePPO
 import config
 from figure_sudoku_env import FigureSudokuEnv
