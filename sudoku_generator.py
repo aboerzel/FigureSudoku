@@ -20,8 +20,8 @@ LEVEL_HCDS_TARGET = {
     8: 4.0,
     9: 4.5,
     10: 5.0,
-    11: 6.0,
-    12: 7.0,
+    11: 7.0,
+    12: 8.0,
 }
 
 
@@ -74,15 +74,7 @@ class SudokuGenerator:
                 
                 old_val = init_state[r, c].copy()
 
-                # 1) Versuch: komplett entfernen
-                init_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
-                if self._has_unique_solution(init_state):
-                    current_hcds += 0.5 # entspricht empty * 0.5
-                    continue
-
-                init_state[r, c] = old_val
-
-                # 2) Versuch: partiell machen (nur wenn noch nicht am Limit)
+                # 1) Versuch: partiell machen (nur wenn noch nicht am Limit)
                 if partial_used < partial_target:
                     # Sicherstellen dass es noch nicht partiell ist
                     if old_val[0] != Geometry.EMPTY.value and old_val[1] != Color.EMPTY.value:
@@ -90,8 +82,17 @@ class SudokuGenerator:
                         if self._has_unique_solution(init_state):
                             partial_used += 1
                             current_hcds += 1.5 # entspricht partial * 1.5
+                            continue
                         else:
                             init_state[r, c] = old_val
+
+                # 2) Versuch: komplett entfernen
+                init_state[r, c] = [Geometry.EMPTY.value, Color.EMPTY.value]
+                if self._has_unique_solution(init_state):
+                    current_hcds += 0.5 # entspricht empty * 0.5
+                    continue
+
+                init_state[r, c] = old_val
 
             if partial_used != partial_target:
                 continue
@@ -159,52 +160,52 @@ class SudokuGenerator:
     # SOLVER (UNVERÄNDERT, AUS IHREM CODE)
     # ==========================================================
     def _count_solutions(self, state, available_shapes, limit=2):
-        empty_coords = []
-        for r in range(self.rows):
-            for c in range(self.cols):
-                if state[r, c, 0] == Geometry.EMPTY.value or state[r, c, 1] == Color.EMPTY.value:
-                    empty_coords.append((r, c))
-
-        if not empty_coords:
-            return 1
-
-        # MRV (Minimum Remaining Values)
         best_cell = None
         best_poss = None
         min_poss = 999
+        
+        empty_found = False
 
-        for r, c in empty_coords:
-            eg, ec = int(state[r, c, 0]), int(state[r, c, 1])
-            poss = []
-            for g, col in available_shapes:
-                if eg != Geometry.EMPTY.value and eg != g:
-                    continue
-                if ec != Color.EMPTY.value and ec != col:
-                    continue
-                if self._is_safe(state, r, c, g, col):
-                    poss.append((g, col))
-            
-            if not poss:
-                return 0
-            
-            if len(poss) < min_poss:
-                min_poss = len(poss)
-                best_cell = (r, c)
-                best_poss = poss
-                if min_poss == 1:
-                    break
+        for r in range(self.rows):
+            for c in range(self.cols):
+                eg, ec = int(state[r, c, 0]), int(state[r, c, 1])
+                if eg == Geometry.EMPTY.value or ec == Color.EMPTY.value:
+                    empty_found = True
+                    poss = []
+                    for g, col in available_shapes:
+                        if eg != Geometry.EMPTY.value and eg != g:
+                            continue
+                        if ec != Color.EMPTY.value and ec != col:
+                            continue
+                        if self._is_safe(state, r, c, g, col):
+                            poss.append((g, col))
+                    
+                    if not poss:
+                        return 0
+                    
+                    if len(poss) < min_poss:
+                        min_poss = len(poss)
+                        best_cell = (r, c)
+                        best_poss = poss
+                        if min_poss == 1:
+                            break
+            if min_poss == 1:
+                break
+
+        if not empty_found:
+            return 1
 
         r, c = best_cell
         count = 0
         for g, col in best_poss:
-            old_g, old_c = state[r, c]
+            old_val = state[r, c].copy()
             state[r, c] = [g, col]
             available_shapes.remove((g, col))
 
             count += self._count_solutions(state, available_shapes, limit)
 
             available_shapes.add((g, col))
-            state[r, c] = [old_g, old_c]
+            state[r, c] = old_val
 
             if count >= limit:
                 return count
@@ -212,45 +213,45 @@ class SudokuGenerator:
         return count
 
     def _solve(self, state, available_shapes):
-        empty_coords = []
-        for r in range(self.rows):
-            for c in range(self.cols):
-                if state[r, c, 0] == Geometry.EMPTY.value or state[r, c, 1] == Color.EMPTY.value:
-                    empty_coords.append((r, c))
-
-        if not empty_coords:
-            return True
-
-        # MRV
         best_cell = None
         best_poss = None
         min_poss = 999
+        
+        empty_found = False
 
-        for r, c in empty_coords:
-            eg, ec = int(state[r, c, 0]), int(state[r, c, 1])
-            poss = []
-            for g, col in available_shapes:
-                if eg != Geometry.EMPTY.value and eg != g:
-                    continue
-                if ec != Color.EMPTY.value and ec != col:
-                    continue
-                if self._is_safe(state, r, c, g, col):
-                    poss.append((g, col))
-            
-            if not poss:
-                return False
-            
-            if len(poss) < min_poss:
-                min_poss = len(poss)
-                best_cell = (r, c)
-                best_poss = poss
-                if min_poss == 1:
-                    break
+        for r in range(self.rows):
+            for c in range(self.cols):
+                eg, ec = int(state[r, c, 0]), int(state[r, c, 1])
+                if eg == Geometry.EMPTY.value or ec == Color.EMPTY.value:
+                    empty_found = True
+                    poss = []
+                    for g, col in available_shapes:
+                        if eg != Geometry.EMPTY.value and eg != g:
+                            continue
+                        if ec != Color.EMPTY.value and ec != col:
+                            continue
+                        if self._is_safe(state, r, c, g, col):
+                            poss.append((g, col))
+                    
+                    if not poss:
+                        return False
+                    
+                    if len(poss) < min_poss:
+                        min_poss = len(poss)
+                        best_cell = (r, c)
+                        best_poss = poss
+                        if min_poss == 1:
+                            break
+            if min_poss == 1:
+                break
+
+        if not empty_found:
+            return True
 
         r, c = best_cell
         random.shuffle(best_poss)
         for g, col in best_poss:
-            old_g, old_c = state[r, c]
+            old_val = state[r, c].copy()
             state[r, c] = [g, col]
             available_shapes.remove((g, col))
 
@@ -258,18 +259,23 @@ class SudokuGenerator:
                 return True
 
             available_shapes.add((g, col))
-            state[r, c] = [old_g, old_c]
+            state[r, c] = old_val
 
         return False
 
     def _is_safe(self, state, r, c, g, col):
+        # Zeilen und Spalten prüfen
         for i in range(self.cols):
             if i != c:
-                if state[r, i, 0] == g or state[r, i, 1] == col:
+                cell_g = state[r, i, 0]
+                cell_c = state[r, i, 1]
+                if cell_g == g or cell_c == col:
                     return False
         for i in range(self.rows):
             if i != r:
-                if state[i, c, 0] == g or state[i, c, 1] == col:
+                cell_g = state[i, c, 0]
+                cell_c = state[i, c, 1]
+                if cell_g == g or cell_c == col:
                     return False
         return True
 
