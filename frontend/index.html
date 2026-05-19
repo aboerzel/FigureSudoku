@@ -126,7 +126,7 @@
             return false;
         };
 
-        const Geometry = { EMPTY: 0, CIRCLE: 1, QUADRAT: 2, TRIANGLE: 3, HEXAGON: 4 };
+        const Geometry = { EMPTY: 0, CIRCLE: 1, SQUARE: 2, TRIANGLE: 3, HEXAGON: 4 };
         const Color = { EMPTY: 0, RED: 1, GREEN: 2, BLUE: 3, YELLOW: 4 };
 
         // Debug-Overlay für sichtbare Fehlermeldungen direkt in der Komponente
@@ -149,7 +149,7 @@
             
             if (geometry === Geometry.CIRCLE) {
                 return `<svg viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${size*0.4}" fill="${color}" fill-opacity="${opacity}" /></svg>`;
-            } else if (geometry === Geometry.QUADRAT) {
+            } else if (geometry === Geometry.SQUARE) {
                 const p = size * 0.1; const s = size * 0.8;
                 return `<svg viewBox="0 0 ${size} ${size}"><rect x="${p}" y="${p}" width="${s}" height="${s}" fill="${color}" fill-opacity="${opacity}" /></svg>`;
             } else if (geometry === Geometry.TRIANGLE) {
@@ -387,7 +387,7 @@
                 const g1 = document.getElementById('geom-1');
                 if (g1) {
                     g1.innerHTML = getSVG(Geometry.CIRCLE, 0, 30);
-                    document.getElementById('geom-2').innerHTML = getSVG(Geometry.QUADRAT, 0, 30);
+                    document.getElementById('geom-2').innerHTML = getSVG(Geometry.SQUARE, 0, 30);
                     document.getElementById('geom-3').innerHTML = getSVG(Geometry.TRIANGLE, 0, 30);
                     document.getElementById('geom-4').innerHTML = getSVG(Geometry.HEXAGON, 0, 30);
                     

@@ -208,7 +208,7 @@ class GridCell:
         self.board.tag_bind(shape, "<Leave>", self.leave)
         return shape
 
-    def create_quadrat(self, color='red', dash=None):
+    def create_square(self, color='red', dash=None):
         padding = self.height * 0.2
         x1 = self.x + padding
         y1 = self.y + padding
@@ -268,7 +268,7 @@ class GridCell:
     def get_random_shape():
         n = random.randint(0, 3)
         return {
-            0: Geometry.QUADRAT,
+            0: Geometry.SQUARE,
             1: Geometry.TRIANGLE,
             2: Geometry.CIRCLE,
             3: Geometry.HEXAGON
@@ -295,7 +295,7 @@ class GridCell:
 
     def get_shape(self, shape, color, dash=None):
         func = {
-            Geometry.QUADRAT.value: self.create_quadrat,
+            Geometry.SQUARE.value: self.create_square,
             Geometry.TRIANGLE.value: self.create_triangle,
             Geometry.CIRCLE.value: self.create_circle,
             Geometry.HEXAGON.value: self.create_hexagon
@@ -604,7 +604,7 @@ class SudokuApp(tk.Tk):
         f_frame = Frame(mid_col, bg="#f0f0f0")
         f_frame.pack(fill=X)
         add_visual_example(f_frame, Geometry.CIRCLE.value, Color.EMPTY.value)
-        add_visual_example(f_frame, Geometry.QUADRAT.value, Color.EMPTY.value)
+        add_visual_example(f_frame, Geometry.SQUARE.value, Color.EMPTY.value)
         add_visual_example(f_frame, Geometry.TRIANGLE.value, Color.EMPTY.value)
         add_visual_example(f_frame, Geometry.HEXAGON.value, Color.EMPTY.value)
 
@@ -661,7 +661,7 @@ class SudokuApp(tk.Tk):
         shapes_frame = Frame(sidebar, bg=self.bg_sidebar)
         shapes_frame.pack(pady=5)
         
-        for g in [Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON]:
+        for g in [Geometry.CIRCLE, Geometry.SQUARE, Geometry.TRIANGLE, Geometry.HEXAGON]:
             # Preview canvas for shape as a draggable source
             ps = Canvas(shapes_frame, width=30, height=30, bg=self.bg_sidebar, highlightthickness=0)
             ps.pack(side=LEFT, padx=5)

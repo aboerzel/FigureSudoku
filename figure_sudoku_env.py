@@ -28,7 +28,7 @@ class FigureSudokuEnv(gym.Env):
         self.rewards = []
         self.valids = 0
 
-        self.geometries = np.array([Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON])
+        self.geometries = np.array([Geometry.CIRCLE, Geometry.SQUARE, Geometry.TRIANGLE, Geometry.HEXAGON])
         self.colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
         self.rows = len(self.geometries)
         self.cols = len(self.colors)
@@ -144,11 +144,6 @@ class FigureSudokuEnv(gym.Env):
             if (curr_g != 0 and curr_g != gv) or (curr_c != 0 and curr_c != cv):
                 masks[i] = False
                 continue
-            
-            # Field already full?
-            if curr_g != 0 and curr_c != 0:
-                masks[i] = False
-                continue
 
             # Sudoku rules (check if figure's G or C exists elsewhere in Row/Col)
             if (row_has_g[r, gv] and curr_g != gv) or (row_has_c[r, cv] and curr_c != cv):
@@ -218,42 +213,6 @@ class FigureSudokuEnv(gym.Env):
             print(f"agent {self.env_id:02d} - episode {self.episode:05d} - step {self.current_step:04d} - level {self.level:02d} : Action: {action:03d} - Valids: {self.valids:04d} - Mean Reward: {mean_reward:.5f}", flush=True)
 
         return self._get_obs(), reward, terminated, truncated, info
-
-    def is_game_finished(self):
-        # Wenn kein leeres Feld mehr da ist, ist das Spiel vorbei
-        if FigureSudokuEnv.get_empty_fields(self.state) == 0:
-            return True
-            
-        # Wenn es keine validen Aktionen mehr gibt, obwohl noch Felder frei sind
-        mask = self.action_masks()
-        return not np.any(mask)
-
-    def is_valid_action(self, action):
-        (geometry, color) = action[0]
-        (row, col) = action[1]
-        
-        g_val = geometry.value if hasattr(geometry, 'value') else geometry
-        c_val = color.value if hasattr(color, 'value') else color
-
-        # Check if the cell is already fully occupied
-        if self.state[row, col, 0] != Geometry.EMPTY.value and self.state[row, col, 1] != Color.EMPTY.value:
-            return False
-
-        # If geometry is pre-filled, the action's geometry must match
-        if self.state[row, col, 0] != Geometry.EMPTY.value and self.state[row, col, 0] != g_val:
-            return False
-        
-        # If color is pre-filled, the action's color must match
-        if self.state[row, col, 1] != Color.EMPTY.value and self.state[row, col, 1] != c_val:
-            return False
-
-        if not FigureSudokuEnv.is_figure_available(self.state, geometry, color):
-            return False
-
-        if not FigureSudokuEnv.can_move(self.state, row, col, geometry, color):
-            return False
-
-        return True
 
     def perform_action(self, action):
         (geometry, color) = action[0]

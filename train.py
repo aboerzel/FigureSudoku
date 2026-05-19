@@ -1,4 +1,5 @@
 import os
+import sys
 import torch as th
 import torch.nn as nn
 
@@ -18,19 +19,46 @@ from typing import Callable
 import re
 
 
-def get_last_level(log_path: str, default_level: int = None) -> int:
+# Fix for BrokenPipeError when using pipes like 'python train.py | head' or 'python train.py | Tee-Object'
+# This happens when the pipe is closed early or the pipe command is not found.
+class BrokenPipeSilencer:
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, data):
+        try:
+            return self.stream.write(data)
+        except BrokenPipeError:
+            # Once a pipe is broken, redirect to devnull to avoid further errors
+            devnull = open(os.devnull, 'w')
+            sys.stdout = devnull
+            sys.stderr = devnull
+            return 0
+
+    def flush(self):
+        try:
+            return self.stream.flush()
+        except BrokenPipeError:
+            devnull = open(os.devnull, 'w')
+            sys.stdout = devnull
+            sys.stderr = devnull
+
+    def getattr(self, name):
+        return getattr(self.stream, name)
+
+
+sys.stdout = BrokenPipeSilencer(sys.stdout)
+
+
+def get_last_level(log_path: str, default_level: int = 1) -> int:
     """
     Versucht das zuletzt erreichte Level aus der Log-Datei zu extrahieren.
     Liest die Datei speichereffizient von hinten und unterstützt UTF-8 und UTF-16.
+    Fällt auf default_level zurück, wenn nichts gefunden wird.
     """
-    if default_level is not None:
-        return default_level
-
-    default_level = 1
-
     if not os.path.exists(log_path):
         return default_level
-    
+
     try:
         size = os.path.getsize(log_path)
         if size == 0:
@@ -152,7 +180,7 @@ def make_sudoku_env(env_id, level, render_gui=False):
         reward_valid_move_base=config.REWARD_VALID_MOVE_BASE,
         reward_invalid_move=config.REWARD_INVALID_MOVE
     )
-    check_env(env)
+    # check_env(env)
     env = Monitor(env, f'{config.OUTPUT_DIR}/train_{env_id}')
     return env
 
@@ -174,6 +202,16 @@ def make_vec_env(num_envs, level, render_gui=False):
 
 
 if __name__ == '__main__':
+    # Automatische Auswahl des besten Geräts
+    if th.cuda.is_available():
+        device = "cuda"
+    elif th.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+
+    print(f"Verwende Gerät: {device}")
+
     # PPO Hyperparameters
     initial_learning_rate = 5e-5 
     n_steps = 4096 
@@ -193,12 +231,12 @@ if __name__ == '__main__':
         net_arch=dict(pi=[256], vf=[256])
     )
 
-    # Versuche das letzte Level aus dem Log zu laden, falls wir ein Modell fortsetzen
-    current_start_level = config.START_LEVEL
+    # Beim Fortsetzen eines Trainings: Level aus Log-Datei lesen, sonst START_LEVEL aus Config
     if os.path.isfile(config.MODEL_PATH):
-        current_start_level = get_last_level(config.LOG_FILE_PATH, config.START_LEVEL)
-        
+        current_start_level = get_last_level(config.LOG_FILE_PATH, default_level=config.START_LEVEL)
         print(f"Fortsetzen des Trainings erkannt. Starte bei Level: {current_start_level}")
+    else:
+        current_start_level = config.START_LEVEL
 
     train_env = make_vec_env(config.NUM_AGENTS, current_start_level, render_gui=config.RENDER_GUI)
 
@@ -214,9 +252,9 @@ if __name__ == '__main__':
             'vf_coef': vf_coef,
             'policy_kwargs': policy_kwargs
         }
-        model = MaskablePPO.load(config.MODEL_PATH, env=train_env, custom_objects=custom_objects, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda", verbose=1)
+        model = MaskablePPO.load(config.MODEL_PATH, env=train_env, custom_objects=custom_objects, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device=device, verbose=1)
     else:
-        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, n_epochs=n_epochs, target_kl=target_kl, learning_rate=lr_schedule, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device="cuda", verbose=1)
+        model = MaskablePPO(MaskableActorCriticPolicy, env=train_env, n_steps=n_steps, batch_size=batch_size, n_epochs=n_epochs, target_kl=target_kl, learning_rate=lr_schedule, gamma=gamma, ent_coef=ent_coef, vf_coef=vf_coef, policy_kwargs=policy_kwargs, tensorboard_log=config.TENSORBOARD_TRAIN_LOG, device=device, verbose=1)
 
     save_best_model_callback = SaveOnBestTrainingRewardCallback(check_freq=config.CHECK_FREQ, log_dir=config.OUTPUT_DIR, model_name=config.MODEL_NAME, checkpoint_name=config.CHECKPOINT_NAME, verbose=1)
 

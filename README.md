@@ -34,7 +34,7 @@ The agent uses state-of-the-art deep learning techniques to learn the game rules
 *   **Action Space:** A total of 256 discrete actions. Each action corresponds to the combination of a specific figure (16 possibilities) and a target cell (16 cells).
 *   **Action Masking:** Since only a few of the 256 actions are compliant with the rules in any state, the project uses **Action Masking**. This prevents the agent from even considering invalid moves (e.g., duplicate color in a row). This dramatically reduces the search space and stabilizes training (see section [Action Masking (Detailed Explanation)](#-action-masking-detailed-explanation)).
 *   **Curriculum Learning:** Training starts at Level 1 (almost solved) and automatically increases the difficulty up to Level 12 (many empty cells) once the agent reaches a defined success rate (adjustable via `REWARD_THRESHOLD`).
-*   **Resumability:** Training automatically detects existing models. The starting level is primarily controlled via `START_LEVEL` in `config.py`. If this value is set to `None`, the level is automatically determined from the last log entry (`LOG_FILE_PATH`) (with fallback to Level 1).
+*   **Resumability:** Training automatically detects existing models. For a fresh run the starting level is taken from `START_LEVEL` in `config.py` (default: `1`). When resuming an existing model, the last reached level is read from the log (`LOG_FILE_PATH`) and used as the starting level; `START_LEVEL` then acts as the fallback if no log entry is found.
 *   **Puzzle Generator:** Puzzles are generated using a highly optimized backtracking algorithm (`sudoku_generator.py`). This uses the **HCDS metric** (Human-Centric Difficulty System) to specifically generate difficulty levels from 1 to 12 that reflect human perception of difficulty. It ensures that every puzzle has a unique solution. From Level 11 onwards, partial specifications (Partial Shapes) are also supported.
 
 ---
@@ -100,6 +100,7 @@ FigureSudoku/
 ├── 📄 visualizer.py         # Live visualization during training
 ├── 📄 callbacks.py          # Logic for curriculum learning & model saving
 ├── 📄 shapes.py             # Definitions of shapes and colors (Enums)
+├── 📁 frontend/             # HTML/JS drag & drop grid used by the Streamlit app
 ├── 📁 documentation/        # Project documentation & videos
 └── 📁 output/               # Saved models, logs, and checkpoints
 ```
@@ -126,7 +127,7 @@ Here you can see the RL agent in action as it solves a Figure-Sudoku step-by-ste
 The central settings of the project are made in `config.py`. Here is an overview of the most important parameters:
 
 ### 🧩 Generator (Puzzle Creation)
-*   `START_LEVEL`: Determines the starting level for training. If a value (1-12) is specified, it is used fixed (manual override). If set to `None`, the level is automatically determined from the log file when resuming training (fallback: Level 1). [Range: `1` to `12` or `None`]
+*   `START_LEVEL`: Starting level for a fresh training run (default: `1`). When resuming an existing model, the last level reached is taken from the log file; `START_LEVEL` is only used as fallback in that case. [Range: `1` to `12`]
 *   `MAX_LEVEL`: The target level (highest difficulty). [Range: `1` to `12`]
 
 ### ⚡ Training & Hyperparameters
@@ -169,19 +170,24 @@ Progress during training can be visualized in two ways:
 ### Prerequisites:
 *   Python 3.8+
 *   Anaconda or venv (recommended)
-*   CUDA-capable GPU (recommended for training, e.g., CUDA 11.8)
+*   For GPU training: CUDA-capable GPU (e.g., CUDA 11.8). CPU-only setups (including Apple Silicon Macs without CUDA) are supported but significantly slower.
 
 ### Installing Dependencies:
 
-1.  **PyTorch with CUDA support (example for CUDA 11.8):**
+Two variants are provided. Pick the one that matches your hardware:
+
+*   **CPU only** (works on macOS / Linux / Windows without CUDA):
     ```bash
-    pip install torch==2.3.1+cu118 torchvision==0.18.1+cu118 torchaudio==2.3.1+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+    pip install -r requirements-cpu.txt
     ```
 
-2.  **Remaining Requirements:**
+*   **GPU with CUDA 11.8** (recommended for training, requires NVIDIA GPU + matching drivers):
     ```bash
-    pip install -r requirements.txt
+    pip install -r requirements-gpu.txt
     ```
+    This pulls the `+cu118` PyTorch wheels from the official PyTorch index. For other CUDA versions, adjust the `--extra-index-url` and the `+cuXXX` suffix in `requirements-gpu.txt` accordingly.
+
+> **Note (Apple Silicon):** On M-series Macs the CPU build is the right choice — `train.py` automatically uses the Metal (MPS) backend at runtime if available.
 
 ---
 
@@ -189,8 +195,14 @@ Progress during training can be visualized in two ways:
 
 To train the agent, simply run `train.py`. The configuration can be adjusted in `config.py` (e.g., `NUM_AGENTS` for parallelization).
 
-```bash
+**Windows (PowerShell):**
+```powershell
 python train.py | Tee-Object -FilePath output/SUDOKU/training.log
+```
+
+**macOS / Linux:**
+```bash
+python train.py | tee output/SUDOKU/training.log
 ```
 
 ### Monitoring with TensorBoard:

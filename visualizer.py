@@ -51,7 +51,7 @@ class GridCell:
         r = 15
         return self.board.create_oval(self.y + r, self.x + r, self.y + self.width - r, self.x + self.height - r, fill=color, outline='')
 
-    def create_quadrat(self, color='red'):
+    def create_square(self, color='red'):
         r = 15
         return self.board.create_rectangle(self.y + r, self.x + r, self.y + self.width - r, self.x + self.height - r, fill=color, outline='')
 
@@ -73,7 +73,7 @@ class GridCell:
 
     def get_shape(self, shape, color):
         funcs = {
-            Geometry.QUADRAT.value: self.create_quadrat,
+            Geometry.SQUARE.value: self.create_square,
             Geometry.TRIANGLE.value: self.create_triangle,
             Geometry.CIRCLE.value: self.create_circle,
             Geometry.HEXAGON.value: self.create_hexagon

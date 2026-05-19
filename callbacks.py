@@ -11,7 +11,7 @@ class CurriculumCallback(BaseCallback):
     Callback for increasing the difficulty level of the environment
     based on the success rate.
     """
-    def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, reward_solved: float, start_level: int = 1, max_level: int = 16, 
+    def __init__(self, check_freq: int, reward_threshold: float, log_dir: str, reward_solved: float, start_level: int = 1, max_level: int = 12,
                  verbose: int = 1):
         super(CurriculumCallback, self).__init__(verbose)
         self.check_freq = check_freq
@@ -20,7 +20,19 @@ class CurriculumCallback(BaseCallback):
         self.reward_solved = reward_solved
         self.current_level = start_level
         self.max_level = max_level
+        # Will be initialized in _init_callback() from existing Monitor logs (for resume support).
         self.episodes_at_start_of_level = 0
+
+    def _init_callback(self) -> None:
+        # On resume, skip past episodes already logged under the previous level so the
+        # success-rate window doesn't mix rewards from the old level with the new one.
+        try:
+            results = load_results(self.log_dir)
+            self.episodes_at_start_of_level = len(results)
+            if self.verbose > 0 and self.episodes_at_start_of_level > 0:
+                print(f"Curriculum: starting at level {self.current_level} after {self.episodes_at_start_of_level} previously logged episodes", flush=True)
+        except Exception:
+            self.episodes_at_start_of_level = 0
 
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:

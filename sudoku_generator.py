@@ -47,6 +47,7 @@ class SudokuGenerator:
             partial_target = 2
 
         best_state = None
+        best_solved = None
         best_distance = float("inf")
 
         for _ in range(MAX_ATTEMPTS):
@@ -106,8 +107,9 @@ class SudokuGenerator:
             if distance < best_distance:
                 best_distance = distance
                 best_state = deepcopy(init_state)
+                best_solved = solved_state.copy()
 
-        return solved_state, best_state
+        return best_solved, best_state
 
     # ==========================================================
     # INTERNAL HELPERS
@@ -298,7 +300,7 @@ def print_grid(state):
 
 if __name__ == "__main__":
     # erlaubte Geometrien & Farben (4x4)
-    geometries = np.array([Geometry.CIRCLE, Geometry.QUADRAT, Geometry.TRIANGLE, Geometry.HEXAGON])
+    geometries = np.array([Geometry.CIRCLE, Geometry.SQUARE, Geometry.TRIANGLE, Geometry.HEXAGON])
     colors = np.array([Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW])
 
     generator = SudokuGenerator(geometries, colors)

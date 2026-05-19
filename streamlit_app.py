@@ -125,7 +125,7 @@ def get_shape_svg(geometry, color_val, size=50, is_preview=False):
     
     if geometry == Geometry.CIRCLE.value:
         return f'<circle cx="{size/2}" cy="{size/2}" r="{size*0.4}" fill="{color}" fill-opacity="{opacity}" />'
-    elif geometry == Geometry.QUADRAT.value:
+    elif geometry == Geometry.SQUARE.value:
         p = size * 0.1
         s = size * 0.8
         return f'<rect x="{p}" y="{p}" width="{s}" height="{s}" fill="{color}" fill-opacity="{opacity}" />'
@@ -420,7 +420,7 @@ if st.session_state.get('show_help', False):
         with f_cols[0]:
             st.markdown(render_cell_content(Geometry.CIRCLE.value, Color.EMPTY.value, size=help_size), unsafe_allow_html=True)
         with f_cols[1]:
-            st.markdown(render_cell_content(Geometry.QUADRAT.value, Color.EMPTY.value, size=help_size), unsafe_allow_html=True)
+            st.markdown(render_cell_content(Geometry.SQUARE.value, Color.EMPTY.value, size=help_size), unsafe_allow_html=True)
         with f_cols[2]:
             st.markdown(render_cell_content(Geometry.TRIANGLE.value, Color.EMPTY.value, size=help_size), unsafe_allow_html=True)
         with f_cols[3]:
